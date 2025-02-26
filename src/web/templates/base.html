@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <meta name="description" content="triage synetis" />
+    <meta name="keywords" content="synetis" />
+
+    <link
+      href="{{ url_for('static', filename='css/bootstrap.min.css') }}"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <script src="{{ url_for('static', filename='js/popper.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/jquery-3.7.1.js') }}"></script>
+
+    <script src="{{ url_for('static', filename='js/dataTables.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dataTables.bootstrap5.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/functions.js') }}"></script>
+    <link
+      rel="icon"
+      type="image/png"
+      href="{{ url_for('static', filename='images/icon.png') }}"
+    />
+    <title>PyTriage</title>
+    <style>
+      .custom-popover {
+        --bs-popover-max-width: 200px;
+        --bs-popover-border-color: var(--bs-primary);
+        --bs-popover-header-bg: var(--bs-primary);
+        --bs-popover-header-color: var(--bs-white);
+        --bs-popover-body-padding-x: 1rem;
+        --bs-popover-body-padding-y: 0.5rem;
+      }
+
+      #loading_div {
+        position: fixed;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        opacity: 0.7;
+        background-color: #fbfbfb;
+        z-index: 99;
+      }
+    </style>
+  </head>
+  <body class="bg-light" style="margin-bottom: 50px">
+    <!-- <nav
+      class="navbar bg-dark navbar-expand-lg bg-body-tertiary"
+      data-bs-theme="dark"
+    > -->
+    <nav
+      class="navbar navbar-expand-lg"
+      style="border-bottom: solid 2px #d2d2d2;"
+    >
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#" onclick="reset_form()">
+          <img
+            src="{{ url_for('static', filename='images/cert.png') }}"
+            alt="Bootstrap"
+            width="55"
+            height="24"
+          />
+        </a>
+        <!-- <span class="navbar-brand mb-0 h1">TRIAGE SYNETIS</span> -->
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+          <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle"
+                href="#"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                Clients
+              </a>
+              <ul
+                id="nav_collectes"
+                class="dropdown-menu"
+                style="max-height: 400px; overflow-y: auto; overflow-x: hidden"
+              ></ul>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/">Nouvelle collecte</a>
+            </li>
+            <li class="nav-item"></li>
+          </ul>
+          <a
+            class="btn btn-link"
+            data-bs-toggle="tooltip"
+            data-bs-placement="bottom"
+            data-bs-title="Admin page"
+            href="/admin"
+            ><svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              class="bi bi-person-lock"
+              viewBox="0 0 16 16"
+            >
+              <path
+                d="M11 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0M8 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4m0 5.996V14H3s-1 0-1-1 1-4 6-4q.845.002 1.544.107a4.5 4.5 0 0 0-.803.918A11 11 0 0 0 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664zM9 13a1 1 0 0 1 1-1v-1a2 2 0 1 1 4 0v1a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1zm3-3a1 1 0 0 0-1 1v1h2v-1a1 1 0 0 0-1-1"
+              /></svg
+          ></a>
+          <button
+            tabindex="0"
+            class="btn btn-outline-primary btn-sm"
+            type="button"
+            data-bs-toggle="popover"
+            data-bs-html="true"
+            data-bs-trigger="focus"
+            data-bs-custom-class="custom-popover"
+            data-bs-title="Adresses utiles"
+            data-bs-content="Timesketch: <a href='{{timesketchurl}}'target='_blank'>{{timesketchurl}}</a><br>ELK: <a href='{{elkurl}}'target='_blank'>{{elkurl}}</a>"
+          >
+            infos
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <div
+      class="offcanvas offcanvas-start"
+      tabindex="-1"
+      id="offcanvasClient"
+      aria-labelledby="offcanvasClientLabel"
+    >
+      <div class="offcanvas-header">
+        <h5 class="offcanvas-title" id="offcanvasClientLabel">Offcanvas</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="offcanvas"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="offcanvas-body">
+        <div>
+          Collectes associées au client:
+          <ul id="offcanvasClientUl" class="list-group list-group-flush"></ul>
+        </div>
+      </div>
+    </div>
+
+
+    <div id="loading_div" class="container-fluid text-center">
+      <div class="d-flex flex-column" style="width: 60%">
+        <div class="p-2">
+          <div
+            id="full_spinner"
+            class="spinner-border spinner-border-lg"
+            role="status"
+          >
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+        <div class="p-2" style="opacity: 0.7">
+          <div
+            id="id_progress_bar"
+            class="progress"
+            role="progressbar"
+            aria-label="Example with label"
+            aria-valuenow="0"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            style="display: none"
+          >
+            <div
+              id="id_progress_bar_txt"
+              class="progress-bar"
+              style="width: 0%"
+            >
+              0%
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container-fluid">
+      {% block main_container %} {% endblock %}
+    </div>
+
+    <div
+      id="alltoasts"
+      class="container-fluid toast-container position-fixed bottom-0 end-0 p-3"
+    >
+      <!-- position-static position-relative -->
+    </div>
+
+    <div
+      id="machineusage"
+      class="position-fixed bottom-0 bg-dark"
+      style="width: 100%; color: white; font-size: small; z-index: 10"
+    >
+      <!-- position-static position-relative -->
+    </div>
+
+    {% block all_logs %} {% endblock %}
+  </body>
+
+  {% block script %} {% endblock %}
+
+</html>

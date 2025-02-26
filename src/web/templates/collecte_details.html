@@ -1,0 +1,219 @@
+{% extends 'base.html' %}
+
+{% block main_container %} 
+<div class="row">
+  <div class="col-6">
+    <div
+      id="collecte_infos"
+      class="my-3 p-3 bg-white rounded box-shadow card"
+    >
+      <div class="card-body">
+        <h5 class="card-title">Informations
+        <div id="collecte_running_div" class="spinner-grow spinner-grow-sm text-primary float-end" role="status" style="display: none;">
+          <span class="visually-hidden">Loading...</span>
+        </div>   
+        </h5>           
+        <div id="collecte_task_row" class="row">
+          <pre id="collecte_task_title" class="col-3">Task</pre>
+          <pre id="collecte_task_value" class="col-9">{{config.task_id}}</pre>
+        </div>
+        <div id="collecte_name_row" class="row">
+          <pre id="collecte_name_title" class="col-3">Name</pre>
+          <pre id="collecte_name_value" class="col-9">
+{{config.archive.name}}</pre
+          >
+        </div>
+        <div id="collecte_sha_row" class="row">
+          <pre id="collecte_sha_title" class="col-3">SHA256</pre>
+          <pre id="collecte_sha_value" class="col-9">
+{{config.archive.sha256}}</pre
+          >
+        </div>
+        <div id="collecte_uuid_row" class="row">
+          <pre id="collecte_uuid_title" class="col-3">UUID</pre>
+          <pre id="collecte_uuid_value" class="col-9">
+{{config.uuid}}</pre
+          >
+        </div>
+        <div id="collecte_client_row" class="row">
+          <pre id="collecte_client_title" class="col-3">Client</pre>
+          <pre id="collecte_client_value" class="col-9">
+{{config.general.client}}</pre
+          >
+        </div>
+        <div id="collecte_hostname_row" class="row">
+          <pre id="collecte_hostname_title" class="col-3">Hostname</pre>
+          <pre id="collecte_hostname_value" class="col-9">
+{{config.general.hostname}}</pre
+          >
+        </div>
+        <div id="collecte_timesketchid_row" class="row">
+          <pre id="collecte_timesketchid_title" class="col-3">
+Timesketch ID</pre
+          >
+          <pre id="collecte_timesketchid_value" class="col-9">
+{{config.general.timesketch_id}}</pre
+          >
+        </div>
+        <div id="collecte_logfile_row" class="row">
+          <pre id="collecte_logfile_title" class="col-3">Log File</pre>
+          <pre id="collecte_logfile_value" class="col-9">
+{{config.log_file}}</pre
+          >
+        </div>
+        {% if config.uuid %}
+        <div id="collecte_btn_row" class="row">
+          <div class="col-6">
+            <div
+              id="download_div"
+              class=""
+            >
+              <div id="download_btn_div" style="text-align: center"></div>
+              <a
+                id="download_collecte_a"
+                class="btn btn-outline-primary my-2 my-sm-0"
+                href="/download?id={{config.uuid}}"
+                >Télécharger la collecte</a
+              >
+            </div>
+          </div>
+          <div class="col-6">
+            <div
+              id="download_results_div"
+              class=""
+              style="text-align: right"
+            >
+              <a
+                id="download_results_a"
+                class="btn btn-outline-success my-2 my-sm-0"
+                href="/results/{{config.uuid}}"
+                >Télécharger les résultats</a
+              >
+            </div>
+          </div>
+        </div>
+        {%endif%}
+      </div>
+    </div>
+    
+  </div>
+  <div class="col-6">
+    <div
+      id="collecte_plugins"
+      class="my-3 p-3 bg-white rounded box-shadow card"
+    >
+      <div class="card-body">
+        <h5 class="card-title">Plugins executed</h5>
+        <div id="collecte_plugins_div"></div>
+      </div>
+      <div class="card-body">
+        <button
+          id="replayForm"
+          class="btn btn-outline-warning my-2 my-sm-0"
+        >
+          Replay
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block all_logs %}
+<div
+      id="main_log_div"
+      class="container-fluid"
+      style="width: 100%; height: 100vh; overflow: auto"
+    >
+      <div class="my-3 p-3 bg-white rounded box-shadow card">
+        <div class="container-fluid border-bottom">
+          <div class="row row-cols-auto">
+            <div class="col">
+              <h5 id="logs_title" class="card-title">Logs</h5>
+            </div>
+          </div>
+          <div class="row">
+            <pre
+              id="logs"
+              class="media text-muted pt-3"
+              style="
+                font-family: SFMono-Regular, Menlo, Monaco, Consolas,
+                  'Liberation Mono', 'Courier New', monospace;
+              "
+            ></pre>
+          </div>
+        </div>
+      </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+  var _myconfig = JSON.parse('{{ config | tojson | safe }}');
+  $(document).ready(function () {
+    const popoverTriggerList = document.querySelectorAll(
+      '[data-bs-toggle="popover"]'
+    );
+    const popoverList = [...popoverTriggerList].map(
+      (popoverTriggerEl) => new bootstrap.Popover(popoverTriggerEl)
+    );
+    const tooltipTriggerList = document.querySelectorAll(
+      '[data-bs-toggle="tooltip"]'
+    );
+    const tooltipList = [...tooltipTriggerList].map(
+      (tooltipTriggerEl) => new bootstrap.Tooltip(tooltipTriggerEl)
+    );
+    getAllClients();
+    getlogs(_myconfig.uuid);
+    getMachineUsage();
+    getRunningCollectes(mainpage=false, uuid=_myconfig.uuid)
+    populate_plugins_infos(_myconfig);
+    $("#loading_div").hide();
+  });
+
+  $("#replayForm").click(function (e) {
+    generate_toast("info_toast", "Demande de rejeu envoyée");
+    $("#loading_div").show();
+    $.ajax({
+      url: "/replay",
+      type: "POST",
+      data: JSON.stringify(_myconfig),
+      cache: false,
+      contentType: "application/json",
+      processData: false,
+      dataType: "json",
+      success: function (res) {
+        if (res) {
+          var txt = "";
+          if ( res.error.length > 0) {
+            $("#error_replay").remove();
+            generate_toast("error_replay", res.error, "text-bg-danger");
+          }
+          txt = "Id de triage: " + res.uuid + "<br>";
+          $("#logs_title").html("Logs - " + txt);
+          $("#logs").html("Processing...");
+          generate_toast("id_triage", txt);
+          $(".custom-file-label").html("");
+          start_process(res);
+        }
+      },
+      error: function (res) {
+        if (res) {
+          generate_toast("error_replay", res, "text-bg-danger");
+        }
+      },
+      complete: function () {
+        $("#id_progress_bar").hide();
+        $("#loading_div").hide();
+      },
+    });
+    return false;
+  }); // Replay the form
+  
+  setInterval(function(){getlogs(_myconfig.uuid)}, 30000);
+  //setInterval(function(){get_collecte_status(_myconfig.task_id)}, 30000);
+  setInterval(function(){getRunningCollectes(mainpage=false, uuid=_myconfig.uuid)}, 30000);
+  setInterval(getMachineUsage, 30000);
+  setInterval(getAllClients, 60000);
+</script>
+{% endblock %}

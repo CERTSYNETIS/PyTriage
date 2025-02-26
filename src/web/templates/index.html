@@ -1,0 +1,1365 @@
+{% extends 'base.html' %}
+
+{% block main_container %} 
+<div class="row">
+  <div class="col mb-4">
+    <div
+      id="collecte_infos"
+      class="my-3 p-3 bg-white rounded box-shadow card"
+    >
+      <div class="card-body">
+        <h5 class="card-title">
+          Informations sur la collecte
+          <span
+            class="badge rounded-pill text-bg-light"
+            data-bs-toggle="tooltip"
+            data-bs-placement="right"
+            data-bs-title="Création automatique du sketch dans Timesketch"
+            >?</span
+          >
+        </h5>
+        <form
+          id="postData"
+          name="postData"
+          method="post"
+          enctype="multipart/form-data"
+        >
+          <div id="config_properties">
+            <div class="form-floating mb-3">
+              <input
+                id="input_client_name"
+                name="client"
+                type="text"
+                class="form-control"
+                aria-label="nom du client"
+                autocomplete="off"
+                placeholder="Client"
+                required
+                autofocus
+              />
+              <label for="input_client_name">Client</label>
+            </div>
+
+            <div class="form-floating mb-3">
+              <input
+                id="input_hostname"
+                name="hostname"
+                type="text"
+                class="form-control"
+                aria-label="hostname de la machine collectée"
+                autocomplete="off"
+                placeholder="Hostname"
+                required
+              />
+              <label for="input_hostname">Hostname machine</label>
+            </div>
+
+            <div
+              id="div_timesketch_id"
+              class="form-floating mb-3"
+              style="display: none"
+            >
+              <input
+                id="input_timesketch_id"
+                name="timesketch_id"
+                type="number"
+                min="1"
+                class="form-control"
+                aria-label="id timesketch"
+                placeholder="Timesketch ID"
+                required
+              />
+              <label for="input_timesketch_id">Timesketch ID</label>
+            </div>
+
+            <div class="form-floating mb-3">
+              <ul id="input_plugins" class="list-group">
+                <li class="list-group-item list-group-item-primary">
+                  <label class="form-check-label"
+                    >Plugins disponibles</label
+                  >
+                </li>
+                <li class="list-group-item">
+                  <input
+                    id="run_kape"
+                    name="kape"
+                    class="form-check-input me-1"
+                    type="checkbox"
+                    value=""
+                    checked
+                  />
+                  <label
+                    class="form-check-label"
+                    for="run_kape"
+                    style="margin-bottom: 1em"
+                  >
+                    KAPE
+                    <span
+                      class="badge rounded-pill text-bg-light"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="right"
+                      data-bs-title="Expected ZIP archive containing VHDX file"
+                      >?</span
+                    >
+                  </label>
+                  <ul id="kape_sub_modules" class="list-group">
+                    <li class="list-group-item">
+                      <input
+                        id="run_kape_evtx"
+                        name="kape_evtx"
+                        class="form-check-input me-1 kape_sub_modules"
+                        type="checkbox"
+                        value=""
+                        checked
+                      />
+                      <label class="form-check-label" for="run_kape_evtx"
+                        >EVTX</label
+                      >
+                      <div class="form-check form-switch">
+                        <input
+                          class="form-check-input"
+                          type="checkbox"
+                          role="switch"
+                          id="kape_evtx_winlogbeat"
+                          name="kape_evtx_winlogbeat"
+                          checked
+                        />
+                        <label
+                          class="form-check-label"
+                          for="kape_evtx_winlogbeat"
+                          >Use WinlogBeat</label
+                        >
+                      </div>
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_kape_iis"
+                        name="kape_iis"
+                        class="form-check-input me-1 kape_sub_modules"
+                        type="checkbox"
+                        value=""
+                        checked
+                      />
+                      <label class="form-check-label" for="run_kape_iis"
+                        >IIS</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_kape_registry"
+                        name="kape_registry"
+                        class="form-check-input me-1 kape_sub_modules"
+                        type="checkbox"
+                        value=""
+                        checked
+                      />
+                      <label class="form-check-label" for="run_kape_registry"
+                        >Registry</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_kape_mft"
+                        name="kape_mft"
+                        class="form-check-input me-1 kape_sub_modules"
+                        type="checkbox"
+                        value=""
+                        checked
+                      />
+                      <label class="form-check-label" for="run_kape_mft"
+                        >MFT</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_kape_usnjrnl"
+                        name="kape_usnjrnl"
+                        class="form-check-input me-1 kape_sub_modules"
+                        type="checkbox"
+                        value=""
+                        checked
+                      />
+                      <label class="form-check-label" for="run_kape_usnjrnl"
+                        >UsnJrnl</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_kape_prefetch"
+                        name="kape_prefetch"
+                        class="form-check-input me-1 kape_sub_modules"
+                        type="checkbox"
+                        value=""
+                        checked
+                      />
+                      <label class="form-check-label" for="run_kape_prefetch"
+                        >Prefetch</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_kape_mplog"
+                        name="kape_mplog"
+                        class="form-check-input me-1 kape_sub_modules"
+                        type="checkbox"
+                        value=""
+                        checked
+                      />
+                      <label class="form-check-label" for="run_kape_mplog"
+                        >MPLog</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_kape_timeline"
+                        name="kape_timeline"
+                        class="form-check-input me-1 kape_sub_modules"
+                        type="checkbox"
+                        value=""
+                        checked
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_kape_timeline"
+                        >Plaso Timeline</label
+                      >
+                    </li>
+                  </ul>
+                </li>
+                <li class="list-group-item">
+                  <input
+                    id="run_hayabusa"
+                    name="hayabusa"
+                    class="form-check-input me-1"
+                    type="checkbox"
+                    value=""
+                    checked
+                  />
+                  <label class="form-check-label" for="run_hayabusa">
+                    HAYABUSA
+                    <span
+                      class="badge rounded-pill text-bg-light"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="right"
+                      data-bs-title="No file expected will run on EVTX files if present"
+                      >?</span
+                    >
+                  </label>
+                </li>
+
+                <li class="list-group-item">
+                  <input
+                    id="run_uac"
+                    name="uac"
+                    class="form-check-input me-1"
+                    type="checkbox"
+                    value=""
+                  />
+                  <label
+                    class="form-check-label"
+                    for="run_uac"
+                    style="margin-bottom: 1em"
+                  >
+                    UAC
+                    <span
+                      class="badge rounded-pill text-bg-light"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="right"
+                      data-bs-title="Expected TAR archive"
+                      >?</span
+                    >
+                  </label>
+                  <ul
+                    id="uac_sub_modules"
+                    class="list-group"
+                    style="display: none"
+                  >
+                    <li class="list-group-item">
+                      <input
+                        id="run_uac_filebeat"
+                        name="uac_filebeat"
+                        class="form-check-input me-1 uac_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_uac_filebeat"
+                        >Filebeat</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_uac_timeline"
+                        name="uac_timeline"
+                        class="form-check-input me-1 uac_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_uac_timeline"
+                        >Plaso Timeline</label
+                      >
+                    </li>
+                  </ul>
+                </li>
+
+                <li class="list-group-item">
+                  <input
+                    id="run_adtimeline"
+                    name="adtimeline"
+                    class="form-check-input me-1"
+                    type="checkbox"
+                    value=""
+                  />
+                  <label class="form-check-label" for="run_adtimeline">
+                    ADTimeline
+                    <span
+                      class="badge rounded-pill text-bg-light"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="right"
+                      data-bs-title="Expected CSV file"
+                      >?</span
+                    >
+                  </label>
+                </li>
+
+                <li class="list-group-item">
+                  <input
+                    id="run_volatility"
+                    name="volatility"
+                    class="form-check-input me-1"
+                    type="checkbox"
+                    value=""
+                  />
+                  <label
+                    class="form-check-label"
+                    for="run_volatility"
+                    style="margin-bottom: 1em"
+                  >
+                    Volatility
+                    <span
+                      class="badge rounded-pill text-bg-light"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="right"
+                      data-bs-title="Expected memory dump file"
+                      >?</span
+                    >
+                  </label>
+                  <ul
+                    id="volatility_sub_modules"
+                    class="list-group"
+                    style="display: none"
+                  >
+                    <li class="list-group-item">
+                      <input
+                        id="run_volatility_pslist"
+                        name="volatility_pslist"
+                        class="form-check-input me-1 volatility_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_volatility_pslist"
+                        >Windows pslist</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_volatility_pstree"
+                        name="volatility_pstree"
+                        class="form-check-input me-1 volatility_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_volatility_pstree"
+                        >Windows pstree</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_volatility_netscan"
+                        name="volatility_netscan"
+                        class="form-check-input me-1 volatility_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_volatility_netscan"
+                        >Windows netscan</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_volatility_netstat"
+                        name="volatility_netstat"
+                        class="form-check-input me-1 volatility_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_volatility_netstat"
+                        >Windows netstat</label
+                      >
+                    </li>
+                  </ul>
+                </li>
+
+                <li class="list-group-item">
+                  <input
+                    id="run_o365"
+                    name="o365"
+                    class="form-check-input me-1"
+                    type="checkbox"
+                    value=""
+                  />
+                  <label class="form-check-label" for="run_o365">
+                    o365
+                    <span
+                      class="badge rounded-pill text-bg-light"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="right"
+                      data-bs-title="Expected ZIP archive produced by DFIR-O365RC"
+                      >?</span
+                    >
+                  </label>
+                </li>
+
+                <li class="list-group-item">
+                  <input
+                    id="run_orc"
+                    name="orc"
+                    class="form-check-input me-1"
+                    type="checkbox"
+                    value=""
+                  />
+                  <label
+                    class="form-check-label"
+                    for="run_orc"
+                    style="margin-bottom: 1em"
+                  >
+                    DFIR-ORC
+                    <span
+                      class="badge rounded-pill text-bg-light"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="right"
+                      data-bs-title="Expected DFIR-ORC generated 7z archive, if crypted give private key"
+                      >?</span
+                    >
+                  </label>
+                  <ul
+                    id="orc_sub_modules"
+                    class="list-group mb-2"
+                    style="display: none"
+                  >
+                    <li class="list-group-item">
+                      <input
+                        id="run_orc_evtx"
+                        name="orc_evtx"
+                        class="form-check-input me-1 orc_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_orc_evtx"
+                        >EVTX</label
+                      >
+                      <div class="form-check form-switch">
+                        <input
+                          class="form-check-input"
+                          type="checkbox"
+                          role="switch"
+                          id="orc_evtx_winlogbeat"
+                          name="orc_evtx_winlogbeat"
+                          checked
+                        />
+                        <label
+                          class="form-check-label"
+                          for="orc_evtx_winlogbeat"
+                          >Use WinlogBeat</label
+                        >
+                      </div>
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_orc_iis"
+                        name="orc_iis"
+                        class="form-check-input me-1"
+                        type="checkbox"
+                        value=""
+                        disabled
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_orc_iis"
+                        >IIS</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_orc_timeline"
+                        name="orc_timeline"
+                        class="form-check-input me-1 orc_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_orc_timeline"
+                        >Plaso Timeline</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_orc_registry"
+                        name="orc_registry"
+                        class="form-check-input me-1 orc_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_orc_registry"
+                        >Registry</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_orc_mft"
+                        name="orc_mft"
+                        class="form-check-input me-1 orc_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_orc_mft"
+                        >MFT</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_orc_usnjrnl"
+                        name="orc_usnjrnl"
+                        class="form-check-input me-1 orc_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_orc_usnjrnl"
+                        >UsnJrnl</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_orc_prefetch"
+                        name="orc_prefetch"
+                        class="form-check-input me-1 orc_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_orc_prefetch"
+                        >Prefetch</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_orc_mplog"
+                        name="orc_mplog"
+                        class="form-check-input me-1"
+                        type="checkbox"
+                        value=""
+                        disabled
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_orc_mplog"
+                        >MPLog</label
+                      >
+                    </li>
+                  </ul>
+                  <div id="div_run_orc_certfile" class="form-text mb-1 orc_plugin" style="display: none">Clé privée de la collecte</div>
+                  <div class="input-group">
+                    <input
+                      class="form-control orc_plugin"
+                      type="file"
+                      id="run_orc_certfile"
+                      name="orc_keyfile"
+                      accept=".pem"
+                      style="display: none"
+                      aria-describedby="div_run_orc_certfile"
+                    />
+                  </div>
+                </li>
+
+                <li class="list-group-item">
+                  <input
+                    id="run_adaudit"
+                    name="adaudit"
+                    class="form-check-input me-1"
+                    type="checkbox"
+                    value=""
+                  />
+                  <label
+                    class="form-check-label"
+                    for="run_adaudit"
+                    style="margin-bottom: 1em"
+                  >
+                    ADAudit
+                    <span
+                      class="badge rounded-pill text-bg-light"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="right"
+                      data-bs-title="Expected ADAudit generated ZIP archive"
+                      >?</span
+                    >
+                  </label>
+                </li>
+
+                <li class="list-group-item">
+                  <input
+                    id="run_generaptor"
+                    name="generaptor"
+                    class="form-check-input me-1"
+                    type="checkbox"
+                    value=""
+                  />
+                  <label
+                    class="form-check-label"
+                    for="run_generaptor"
+                    style="margin-bottom: 1em"
+                  >
+                    Generaptor
+                    <span
+                      class="badge rounded-pill text-bg-light"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="right"
+                      data-bs-title="Expected Generaptor generated ZIP archive"
+                      >?</span
+                    >
+                  </label>
+                  <ul
+                    id="generaptor_sub_modules"
+                    class="list-group mb-2"
+                    style="display: none"
+                  >
+                    <li class="list-group-item">
+                      <input
+                        id="run_generaptor_evtx"
+                        name="generaptor_evtx"
+                        class="form-check-input me-1 generaptor_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_generaptor_evtx"
+                        >EVTX</label
+                      >
+                      <div class="form-check form-switch">
+                        <input
+                          class="form-check-input"
+                          type="checkbox"
+                          role="switch"
+                          id="generaptor_evtx_winlogbeat"
+                          name="generaptor_evtx_winlogbeat"
+                          checked
+                        />
+                        <label
+                          class="form-check-label"
+                          for="generaptor_evtx_winlogbeat"
+                          >Use WinlogBeat</label
+                        >
+                      </div>
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_generaptor_iis"
+                        name="generaptor_iis"
+                        class="form-check-input me-1 generaptor_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_generaptor_iis"
+                        >IIS</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_generaptor_timeline"
+                        name="generaptor_timeline"
+                        class="form-check-input me-1 generaptor_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_generaptor_timeline"
+                        >Plaso Timeline</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_generaptor_registry"
+                        name="generaptor_registry"
+                        class="form-check-input me-1 generaptor_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_generaptor_registry"
+                        >Registry</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_generaptor_mft"
+                        name="generaptor_mft"
+                        class="form-check-input me-1 generaptor_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_generaptor_mft"
+                        >MFT</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_generaptor_usnjrnl"
+                        name="generaptor_usnjrnl"
+                        class="form-check-input me-1 generaptor_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_generaptor_usnjrnl"
+                        >UsnJrnl</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_generaptor_prefetch"
+                        name="generaptor_prefetch"
+                        class="form-check-input me-1 generaptor_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_generaptor_prefetch"
+                        >Prefetch</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_generaptor_mplog"
+                        name="generaptor_mplog"
+                        class="form-check-input me-1 generaptor_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_generaptor_mplog"
+                        >MPLog</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
+                        id="run_generaptor_linux"
+                        name="generaptor_linux"
+                        class="form-check-input me-1 generaptor_sub_modules"
+                        type="checkbox"
+                        value=""
+                      />
+                      <label
+                        class="form-check-label"
+                        for="run_generaptor_linux"
+                        >Linux collecte</label
+                      >
+                    </li>
+                  </ul>
+                  <div id="div_generaptor_private_key_file" class="form-text mb-1 generaptor_plugin" style="display: none">Clé privée de la collecte</div>
+                  <div class="input-group mb-3">
+                    <input
+                      class="form-control generaptor_plugin"
+                      type="file"
+                      id="run_generaptor_private_key_file"
+                      name="generaptor_private_key_file"
+                      accept=".pem"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="bottom"
+                      data-bs-title="Private key file (.pem)"
+                      style="display: none"
+                      aria-describedby="div_generaptor_private_key_file"
+                    />
+                  </div>
+                  <div class="form-floating mb-3">
+                    <input
+                      id="run_generaptor_private_key_secret"
+                      name="generaptor_private_key_secret"
+                      type="password"
+                      class="form-control generaptor_plugin"
+                      aria-label="key secret"
+                      autocomplete="off"
+                      placeholder="private key secret"
+                      style="display: none"
+                    />
+                    <label 
+                      class="generaptor_plugin"
+                      for="run_generaptor_private_key_secret"
+                      style="display: none">
+                      private key secret
+                    </label>
+                  </div>
+                </li>
+
+                <li
+                  id="run_standalone_li"
+                  class="list-group-item"
+                  style="display: none"
+                >
+                  <input
+                    id="run_standalone"
+                    name="standalone"
+                    class="form-check-input me-1"
+                    type="checkbox"
+                    value=""
+                    readonly
+                  />
+                  <input
+                    id="run_standalone_plugin"
+                    name="standalone_x"
+                    class="form-check-input me-1"
+                    type="checkbox"
+                    value=""
+                    style="display: none"
+                  />
+                  <label
+                    class="form-check-label"
+                    for="run_standalone"
+                    id="run_standalone_label"
+                  >
+                    Standalone:
+                    <span
+                      class="badge rounded-pill text-bg-light"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="right"
+                      data-bs-title="Cannot be modified"
+                      >?</span
+                    >
+                  </label>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div id="div_description_collecte" class="form-text mb-1">Fichier de collecte de la machine</div>
+          <div id="archive_file" class="input-group mb-3">
+            <input
+              class="form-control"
+              type="file"
+              id="archive"
+              name="archive"
+              accept=".zip, .tar, .tar.gz, .csv, .raw, .7z, .7z.p7b"
+              aria-describedby="div_description_collecte"
+              required
+            />
+          </div>
+          
+          <button
+            id="submitForm"
+            class="btn btn-outline-primary my-2 my-sm-0"
+          >
+            Submit
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="col mb-4">
+    <div class="col">
+      <div
+        id="standalone_collecte"
+        class="my-3 p-3 bg-white rounded box-shadow card"
+        style="text-align: center"
+      >
+        <h5 class="card-title">Analyse rapide</h5>
+        <div id="stabndalone_collect_card_body" class="card-body">
+          <!-- Button trigger modal -->
+          <pre style="text-align: left">
+        Section pour envoyer:
+        - Fichier JSONL de résultats Hayabusa
+        - Archive ZIP contenant des fichiers EVTX
+        - Archive ZIP contenant des logs Fortinet (txt/log) <span class="badge text-bg-warning">attention au parsing</span> <span class="badge text-bg-light">Regex: (\w+)=(?:"([^"]*)"|(\S+))</span>
+        </pre>
+          <button
+            type="button"
+            class="btn btn-outline-primary"
+            data-bs-toggle="modal"
+            data-bs-target="#standaloneModal"
+          >
+            Envoyer fichier
+          </button>
+
+          <!-- Modal -->
+          <div
+            class="modal fade"
+            id="standaloneModal"
+            data-bs-backdrop="static"
+            data-bs-keyboard="false"
+            tabindex="-1"
+            aria-labelledby="standaloneModalLabel"
+            aria-hidden="true"
+          >
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h1 class="modal-title fs-5" id="standaloneModalLabel">
+                    Standalone file
+                  </h1>
+                  <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"
+                  ></button>
+                </div>
+                <div class="modal-body">
+                  <div id="standaloneModal_config_properties">
+                    <div class="form-floating mb-3">
+                      <!-- <span class="input-group-text" for="standaloneModal_input_client_name">Client</span > -->
+                      <input
+                        id="standaloneModal_input_client_name"
+                        name="client"
+                        type="text"
+                        class="form-control"
+                        autocomplete="off"
+                        placeholder="Client"
+                        required
+                      />
+                      <label for="standaloneModal_input_client_name"
+                        >Client</label
+                      >
+                    </div>
+                    <div class="form-floating mb-3">
+                      <input
+                        id="standaloneModal_input_hostname"
+                        name="hostname"
+                        type="text"
+                        class="form-control"
+                        aria-label="hostname de la machine collectée"
+                        autocomplete="off"
+                        placeholder="Hostname"
+                        required
+                      />
+                      <label for="standaloneModal_input_hostname"
+                        >Hostname</label
+                      >
+                    </div>
+
+                    <div class="form-floating mb-3">
+                      <select
+                        class="form-select"
+                        id="standaloneModal_run_plugin"
+                        placeholder="Plugin"
+                        required
+                      >
+                        <option selected value="hayabusa">
+                          Hayabusa
+                        </option>
+                        <option value="evtxparser">EVTX</option>
+                        <option value="winlogbeat">WinlogBeat</option>
+                        <option value="fortinet">Fortinet</option>
+                      </select>
+                      <label for="standaloneModal_run_plugin"
+                        >Plugin</label
+                      >
+                      <div class="invalid-feedback">
+                        Please select a valid plugin.
+                      </div>
+                    </div>
+                    <div id="div_standaloneModal_file" class="form-text mb-1" style="text-align: left;">Fichier de collecte</div>
+                    <div
+                      id="standaloneModal_div_file"
+                      class="input-group mb-3"
+                    >
+                      <input
+                        class="form-control"
+                        type="file"
+                        id="standaloneModal_file"
+                        name="archive"
+                        accept=".json, .jsonl, .zip"
+                        required
+                        aria-describedby="div_standaloneModal_file"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button
+                    id="standaloneModal_close"
+                    type="button"
+                    class="btn btn-secondary"
+                    data-bs-dismiss="modal"
+                  >
+                    Close
+                  </button>
+                  <button
+                    id="standaloneModal_send"
+                    type="button"
+                    class="btn btn-outline-primary"
+                  >
+                    Run
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div
+        id="main_running_collecte_div"
+        class="col my-3 p-3 bg-white rounded box-shadow card"
+        style="text-align: center"
+      >
+        <h5 class="card-title">Collectes en cours de traitement</h5>
+        <div id="running_collecte_div" class="card-body"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block all_logs %}
+
+{% endblock %}
+
+{% block script %}
+<script>
+  $(document).ready(function () {
+    const popoverTriggerList = document.querySelectorAll(
+      '[data-bs-toggle="popover"]'
+    );
+    const popoverList = [...popoverTriggerList].map(
+      (popoverTriggerEl) => new bootstrap.Popover(popoverTriggerEl)
+    );
+    const tooltipTriggerList = document.querySelectorAll(
+      '[data-bs-toggle="tooltip"]'
+    );
+    const tooltipList = [...tooltipTriggerList].map(
+      (tooltipTriggerEl) => new bootstrap.Tooltip(tooltipTriggerEl)
+    );
+    
+    const PLUGINS = ["kape", "uac", "hayabusa", "adtimeline", "volatility", "o365", "orc", "adaudit", "generaptor"];
+
+    display_plugin_options("generaptor");
+    $('#run_generaptor_linux').prop("checked", false);
+    $("#run_hayabusa").prop("checked", true);
+
+    getAllClients();
+    getMachineUsage();
+    getRunningCollectes();
+    
+    $("#loading_div").hide();
+    
+    $("#run_kape").change(function () {
+      if (this.checked) {
+        display_plugin_options("kape");
+        $("#run_hayabusa").prop("checked", true);
+      } else {
+        display_plugin_options("none");
+      }
+    });
+    $("#run_hayabusa").change(function () {
+      if (this.checked) {
+        $("#run_uac").prop("checked", false);
+        $("#uac_sub_modules").hide();
+        $(".uac_sub_modules").prop("checked", false);
+        $("#run_adtimeline").prop("checked", false);
+        $("#run_o365").prop("checked", false);
+        $("#run_volatility").prop("checked", false);
+        $("#volatility_sub_modules").hide();
+        $(".volatility_sub_modules").prop("checked", false);
+        $("#run_adaudit").prop("checked", false);
+      }
+    });
+    $("#run_uac").change(function () {
+      if (this.checked) {
+        display_plugin_options("uac");
+      } else {
+        display_plugin_options("none");
+      }
+    });
+    $("#run_adtimeline").change(function () {
+      if (this.checked) {
+        display_plugin_options("adtimeline");
+      } else {
+        display_plugin_options("none");
+      }
+    });
+    $("#run_o365").change(function () {
+      if (this.checked) {
+        display_plugin_options("o365");
+      } else {
+        display_plugin_options("none");
+      }
+    });
+    $("#run_volatility").change(function () {
+      if (this.checked) {
+        display_plugin_options("volatility");
+      } else {
+        display_plugin_options("none");
+      }
+    });
+    $("#run_orc").change(function () {
+      if (this.checked) {
+        display_plugin_options("orc");
+        $("#run_hayabusa").prop("checked", true);
+      } else {
+        display_plugin_options("none");
+      }
+    });
+    $("#run_adaudit").change(function () {
+      if (this.checked) {
+        display_plugin_options("adaudit");
+      } else {
+        display_plugin_options("none");
+      }
+    });
+    $("#run_generaptor").change(function () {
+      if (this.checked) {
+        display_plugin_options("generaptor");
+        $("#run_hayabusa").prop("checked", true);
+        $('#run_generaptor_linux').prop("checked", false);
+      } else {
+        display_plugin_options("none");
+      }
+    });
+
+    $("#submitForm").click(function (e) {
+      if (!check_config()) {
+        alert("Champs manquant...");
+        return false;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      var data = new FormData($("#postData")[0]);
+      generate_toast("info_toast", "Sending File...");
+      $("#loading_div").show();
+      $.ajax({
+        xhr: function () {
+          var xhr = new window.XMLHttpRequest();
+          xhr.upload.addEventListener(
+            "progress",
+            function (evt) {
+              if (evt.lengthComputable) {
+                var percentComplete = (evt.loaded / evt.total) * 100;
+                //console.log(Math.floor(percentComplete))
+                // Place upload progress bar visibility code here
+                $("#id_progress_bar")
+                  .show()
+                  .attr("aria-valuenow", Math.floor(percentComplete));
+                $("#id_progress_bar_txt")
+                  .css("width", Math.floor(percentComplete) + "%")
+                  .html(Math.floor(percentComplete) + "%");
+              }
+            },
+            false
+          );
+          return xhr;
+        },
+        url: "/",
+        type: "POST",
+        data: data,
+        cache: false,
+        contentType: false,
+        processData: false,
+        dataType: "json",
+        success: function (res) {
+          if (res) {
+            var txt = "";
+            txt = "Id de triage: " + res.uuid + "<br>";
+            generate_toast("id_triage", txt);
+            $(".custom-file-label").html("");
+            if (res.error.length == 0) {
+              $("#archive").val(null);
+              $("#archive").prop("required", true);
+              start_process(res);
+            } 
+            else {
+              console.log("Error: " + res.error);
+              var err = res.error;
+              $("#main_error_input").remove();
+              generate_toast("main_error_input", err, "text-bg-danger");
+            }
+          }
+        },
+        error: function (res) {
+          if (res) {
+            console.log(res);
+          }
+        },
+        complete: function () {
+          $("#id_progress_bar").hide();
+          $("#loading_div").hide();
+          getAllClients();
+        },
+      });
+      
+      return false;
+    }); // Submit the form
+
+    function display_plugin_options(plugin)
+    {
+      for (var _p=0; _p < PLUGINS.length; _p++) {
+        if (PLUGINS[_p] != plugin){
+          $("."+PLUGINS[_p]+"_plugin").hide();
+          $("#run_"+PLUGINS[_p]).prop("checked", false);
+          try{
+            $("#run_"+PLUGINS[_p]+"_private_key_file").prop("required", false);
+          }
+          catch(err){ console.log(err);}
+          try{
+            $("#run_"+PLUGINS[_p]+"_private_key_secret").prop("required", false);
+          }
+          catch(err){ console.log(err);}
+          try{
+            $("#"+PLUGINS[_p]+"_sub_modules").hide();
+          }
+          catch(err){ console.log(err);}
+          try{
+            $("."+PLUGINS[_p]+"_sub_modules").prop("checked", false);
+          }
+          catch(err){ console.log(err);}
+        }
+      }
+
+      $("."+plugin+"_plugin").show();
+      $("#run_"+plugin).prop("checked", true);
+      try{
+        $("#run_"+plugin+"_private_key_file").prop("required", true);
+      }
+      catch(err){ console.log(err);}
+      try{
+        $("#run_"+plugin+"_private_key_secret").prop("required", true);
+      }
+      catch(err){ console.log(err);}
+      try{
+        $("#"+plugin+"_sub_modules").show();
+      }
+      catch(err){ console.log(err);}
+      try{
+        $("."+plugin+"_sub_modules").prop("checked", true);
+      }
+      catch(err){ console.log(err);}
+    }
+  });
+
+  $("#config").on("change", function () {
+    var fileName = $(this).val();
+    $(this).next(".custom-file-label").addClass("selected").html(fileName);
+  });
+  $("#archive").on("change", function () {
+    var fileName = $(this).val();
+    $(this).next(".custom-file-label").addClass("selected").html(fileName);
+  });
+
+  
+  $("#standaloneModal_send").click(function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!check_config_modal()) {
+      alert("Champs manquant...");
+      return false;
+    }
+    var data = new FormData();
+    data.append("client", $("#standaloneModal_input_client_name").val());
+    data.append("hostname", $("#standaloneModal_input_hostname").val());
+    data.append("run_plugin", $("#standaloneModal_run_plugin").val());
+    data.append("archive", $("#standaloneModal_file").prop("files")[0]);
+
+    generate_toast("info_toast", "Sending File...");
+    $("#loading_div").show();
+    $("#standaloneModal").modal("hide");
+    $.ajax({
+      xhr: function () {
+        var xhr = new window.XMLHttpRequest();
+        xhr.upload.addEventListener(
+          "progress",
+          function (evt) {
+            if (evt.lengthComputable) {
+              var percentComplete = (evt.loaded / evt.total) * 100;
+              $("#id_progress_bar")
+                .show()
+                .attr("aria-valuenow", Math.floor(percentComplete));
+              $("#id_progress_bar_txt")
+                .css("width", Math.floor(percentComplete) + "%")
+                .html(Math.floor(percentComplete) + "%");
+            }
+          },
+          false
+        );
+        return xhr;
+      },
+      url: "/standalone_input_file",
+      type: "POST",
+      data: data,
+      cache: false,
+      contentType: false,
+      processData: false,
+      dataType: "json",
+      success: function (res) {
+        if (res) {
+          var txt = "";
+          if (res.error) {
+            for (let i = 0; i < res.error.length; i++) {
+              var err = res.error[i].name + " : ";
+              err += res.error[i].status;
+              generate_toast("error_" + i, err, "text-bg-danger");
+            }
+          }
+          txt = "Id de triage: " + res.uuid + "<br>";
+          generate_toast("id_triage", txt);
+          $(".custom-file-label").html("");
+          start_process(res);
+        }
+      },
+      error: function (res) {
+        if (res) {
+          console.log(res);
+        }
+      },
+      complete: function () {
+        $("#id_progress_bar").hide();
+        $("#loading_div").hide();
+      },
+    });
+    return false;
+  });
+  // schedule the first invocation:
+  setInterval(getMachineUsage, 30000);
+  setInterval(getAllClients, 60000);
+  setInterval(getRunningCollectes, 60000);
+</script>
+{% endblock %}

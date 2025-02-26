@@ -1,0 +1,805 @@
+{% extends 'base.html' %}
+
+{% block main_container %} 
+<div class="row">
+  <div class="col-12">
+    <div
+      id="collecte_infos"
+      class="my-3 p-3 bg-white rounded box-shadow card"
+    >
+      <div class="card-body">
+        <h5 class="card-title">
+          Gestion des collectes
+          <span
+            class="badge text-bg-light"
+            onclick="get_admin_collectes()"
+            style="cursor: pointer"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              class="bi bi-arrow-clockwise"
+              viewBox="0 0 16 16"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"
+              />
+              <path
+                d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"
+              />
+            </svg>
+          </span>
+        </h5>
+        <div class="row">
+          <p class="col-1 card-subtitle mb-2 text-body-secondary">Disk usage</p>
+          <div class="col-11" id="disk_usage">
+
+          </div>
+        </div>
+
+        <div class="row">
+        <table
+          class="table table-hover"
+          id="table_collectes_infos"
+          style="width: 100%"
+        >
+          <caption> Liste des collectes</caption>
+          <thead>
+            <tr>
+              <th scope="col">UUID</th>
+              <th scope="col">Client</th>
+              <th scope="col">Hostname</th>
+              <th scope="col">Date</th>
+              <th scope="col">State</th>
+              <th scope="col">Delete</th>
+              <th scope="col">Dl logs</th>
+            </tr>
+          </thead>
+          <tbody id="tbody_collectes_infos"></tbody>
+        </table>
+      </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-4">
+    <div
+      id="hayabusa_configuration_infos"
+      class="my-3 p-3 bg-white rounded box-shadow card"
+    >
+      <div class="card-body">
+        <h5 class="card-title">Gestion Hayabusa</h5>
+        <div id="admin_hayabusa_infos" class="row">
+          <p class="col-6">Hayabusa version</p>
+          <p id="admin_hayabusa_version_span" class="col-3">...</p>
+          <p id="admin_hayabusa_archive_upload" class="col-3">
+            <span
+              class="badge text-bg-light"
+              onclick="uploadHayabusa()"
+              style="cursor: pointer"
+              data-bs-toggle="tooltip"
+              data-bs-placement="bottom"
+              data-bs-title="Upload ZIP Hayabusa"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                class="bi bi-file-earmark-arrow-up"
+                viewBox="0 0 16 16"
+              >
+                <path
+                  d="M8.5 11.5a.5.5 0 0 1-1 0V7.707L6.354 8.854a.5.5 0 1 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 7.707z"
+                />
+                <path
+                  d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2M9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"
+                />
+              </svg>
+            </span>
+            <input
+              class="form-control"
+              type="file"
+              id="admin_hayabusa_archive"
+              name="hayabusa_archive"
+              accept=".zip"
+              style="display: none"
+              required
+            />
+          </p>
+        </div>
+      </div>
+    </div>
+  
+    <div
+    id="logstash_configuration_infos"
+    class="my-3 p-3 bg-white rounded box-shadow card"
+  >
+    <div class="card-body">
+      <h5 class="card-title">Gestion Pipelines Logstash</h5>
+      <div id="admin_logstash_infos" class="row">
+        
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div class="col-4">
+    <div
+      id="timesketch_infos"
+      class="my-3 p-3 bg-white rounded box-shadow card"
+    >
+      <div class="card-body">
+        <h5 class="card-title">Gestion Timesketch</h5>
+        <div id="admin_ts_infos" class="row">
+          <p class="col-6">
+            Status
+            <span
+              class="badge text-bg-light"
+              onclick="getTSStatus()"
+              style="cursor: pointer"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                class="bi bi-arrow-clockwise"
+                viewBox="0 0 16 16"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"
+                />
+                <path
+                  d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"
+                />
+              </svg>
+            </span>
+          </p>
+          <p id="admin_ts_infos_span" class="col-6">loading...</p>
+        </div>
+        <div id="admin_ts_sketchs" class="row">
+          <p class="col-6">
+            All sketchs
+            <span
+              class="badge text-bg-light"
+              onclick="getTSSketchs()"
+              style="cursor: pointer"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                class="bi bi-arrow-clockwise"
+                viewBox="0 0 16 16"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"
+                />
+                <path
+                  d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"
+                />
+              </svg>
+            </span>
+          <table
+            class="table table-hover"
+            id="table_sketchs_infos"
+            style="width: 100%"
+          >
+            <caption> Liste des sketchs</caption>
+            <thead>
+              <tr>
+                <th scope="col">ID</th>
+                <th scope="col">Name</th>
+                <th scope="col">Access</th>
+                <th scope="col">Delete</th>
+              </tr>
+            </thead>
+            <tbody id="tbody_sketchs_infos"></tbody>
+          </table>
+        </p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-4">
+    <div
+      id="elastic_infos"
+      class="my-3 p-3 bg-white rounded box-shadow card"
+    >
+      <div class="card-body">
+        <h5 class="card-title">Gestion Elastic</h5>
+        <div id="admin_elastic_infos" class="row">
+          <p class="col-6">
+            Status
+            <span
+              class="badge text-bg-light"
+              onclick="getElasticStatus()"
+              style="cursor: pointer"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                class="bi bi-arrow-clockwise"
+                viewBox="0 0 16 16"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"
+                />
+                <path
+                  d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"
+                />
+              </svg>
+            </span>
+          </p>
+          <p id="admin_elastic_infos_span" class="col-6">loading...</p>
+        </div>
+        <div id="admin_elastic_indices" class="row">
+          <p class="col-6">
+            All indices
+            <span
+              class="badge text-bg-light"
+              onclick="getElasticIndices()"
+              style="cursor: pointer"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                class="bi bi-arrow-clockwise"
+                viewBox="0 0 16 16"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"
+                />
+                <path
+                  d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"
+                />
+              </svg>
+            </span>
+          <table
+            class="table table-hover"
+            id="table_indices_infos"
+            style="width: 100%"
+          >
+            <caption> Liste des indices</caption>
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Delete</th>
+              </tr>
+            </thead>
+            <tbody id="tbody_indices_infos"></tbody>
+          </table>
+        </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block all_logs %} {% endblock %}
+
+{% block script %}
+<script>
+  $(document).ready(function () {
+    const popoverTriggerList = document.querySelectorAll(
+      '[data-bs-toggle="popover"]'
+    );
+    const popoverList = [...popoverTriggerList].map(
+      (popoverTriggerEl) => new bootstrap.Popover(popoverTriggerEl)
+    );
+    const tooltipTriggerList = document.querySelectorAll(
+      '[data-bs-toggle="tooltip"]'
+    );
+    const tooltipList = [...tooltipTriggerList].map(
+      (tooltipTriggerEl) => new bootstrap.Tooltip(tooltipTriggerEl)
+    );
+
+    $("#loading_div").hide();
+    $("#alltoasts").html("");
+    get_admin_collectes();
+    getTSStatus();
+    getHayabusaVersion();
+    getTSSketchs();
+    getMachineUsage();
+    getLSStatus();
+    getElasticStatus();
+    getElasticIndices();
+  });
+  function generate_toast(id, text, s_class = "") {
+    $("#alltoasts").append(
+      '\
+  <div id="' +
+        id +
+        '" class="toast ' +
+        s_class +
+        '" role="alert" aria-live="assertive" aria-atomic="true" data-autohide="false">\
+    <div class="toast-header">\
+      <strong class="me-auto">Admin | Triage</strong>\
+      <small class="text-body-secondary">now</small>\
+    </div>\
+    <div id="' +
+        id +
+        '_body" class="toast-body">' +
+        text +
+        "\
+    </div>\
+  </div>\
+  "
+    );
+    $("#" + id).toast("show");
+  }
+
+  function getMachineUsage() {
+    $.ajax({
+      type: "get",
+      url: "/usage",
+      success: function (data) {
+        if (data) {
+          $("#machineusage").html(
+            "cpu: " + data.cpu + "% | mem: " + data.memory + "%"
+          );
+          $("#disk_usage").html('<div class="progress" role="progressbar" aria-label="Info example" aria-valuenow="'+data.disk+'" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar bg-info" style="width: '+data.disk+'%">'+data.disk+'%</div></div>');
+        } else {
+          $("#machineusage").html("cpu: N/A | mem: N/A");
+        }
+      },
+      error: function (data) {
+        $("#machineusage").html("cpu: N/A | mem: N/A");
+      },
+    });
+  }
+
+  function get_admin_collectes() {
+    $.ajax({
+      type: "get",
+      url: "/admincollectes",
+      contentType: "application/json",
+      success: function (data) {
+        AllCollectes = data;
+        generate_toast("get_collectes", "Collectes chargées avec succès");
+      },
+      error: function (data) {
+        AllCollectes = {};
+        generate_toast(
+          "get_collectes",
+          "Erreur lors du chargement des collectes",
+          "text-bg-danger"
+        );
+      },
+      complete: function (data) {
+        display_collectes_infos(AllCollectes);
+      },
+    });
+  }
+
+  function remove_collecte(
+    uuid = "",
+    client = "",
+    hostname = "",
+    state = ""
+  ) {
+    if (confirm("Are you sure you want to delete this collecte ?")) {
+      $("#loading_div").show();
+      const value = {
+        uuid: uuid,
+        client: client,
+        hostname: hostname,
+        state: state,
+      };
+      $.ajax({
+        type: "post",
+        url: "/admindeletecollecte",
+        data: JSON.stringify(value),
+        contentType: "application/json",
+        success: function (data) {
+          generate_toast(
+            "remove_collecte_" + uuid,
+            data.status
+          );
+        },
+        error: function (data) {
+          generate_toast(
+            "remove_collecte_" + uuid,
+            "Erreur lors de la suppression de la collecte",
+            "text-bg-danger"
+          );
+        },
+        complete: function (data) {
+          get_admin_collectes();
+          $("#loading_div").hide();
+        },
+      });
+    }
+  }
+
+  function display_collectes_infos(collectes = {}) {
+    var text = "";
+    //admin row
+    text += "<tr>";
+    text += '<th scope="row"></th>';
+    text += "<td>Admin</td>";
+    text += "<td></td>";
+    text += "<td></td>";
+    text += "<td></td>";
+    text += "<td></td>";
+    text +=
+      '<td><a id="download_collecte_log_admin" href="/download_log_file?id=admin.log"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-down-circle" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0M8.5 4.5a.5.5 0 0 0-1 0v5.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293z"/></svg></a></td>';
+    text += "</tr>";
+    for (const [key, value] of Object.entries(collectes)) {
+      text += "<tr>";
+      text += '<th scope="row"> <a target="_blank" href="/collecte/' + key + '"</a>' + key + "</th>";
+      text += "<td>" + value["client"] + "</td>";
+      text += "<td>" + value["hostname"] + "</td>";
+      text += "<td>" + value["mtime"] + "</td>";
+      text += '<td><span class="badge text-bg-primary">' + value["state"] +"</span></td>";
+      text +=
+        '<td><span class="badge text-bg-light" id="remove_collecte_' +
+        key +
+        '" type="button" onclick="remove_collecte(uuid=\'' +
+        key +
+        "',client='" +
+        value["client"] +
+        "',hostname='" +
+        value["hostname"] +
+        "',state='" +
+        value["state"] +
+        '\')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash3" viewBox="0 0 16 16"><path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5M11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3A1.5 1.5 0 0 0 5 1.5v1H1.5a.5.5 0 0 0 0 1h.538l.853 10.66A2 2 0 0 0 4.885 16h6.23a2 2 0 0 0 1.994-1.84l.853-10.66h.538a.5.5 0 0 0 0-1zm1.958 1-.846 10.58a1 1 0 0 1-.997.92h-6.23a1 1 0 0 1-.997-.92L3.042 3.5zm-7.487 1a.5.5 0 0 1 .528.47l.5 8.5a.5.5 0 0 1-.998.06L5 5.03a.5.5 0 0 1 .47-.53Zm5.058 0a.5.5 0 0 1 .47.53l-.5 8.5a.5.5 0 1 1-.998-.06l.5-8.5a.5.5 0 0 1 .528-.47M8 4.5a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5"/></svg></span></td>';
+      text +=
+        '<td><a id="download_collecte_log_' +
+        key +
+        '" href="/download_log_file?id=' +
+        key +
+        '.log"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-down-circle" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0M8.5 4.5a.5.5 0 0 0-1 0v5.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293z"/></svg></a></td>';
+      text += "</tr>";
+    }
+    $("#table_collectes_infos").DataTable().destroy();
+    $("#tbody_collectes_infos").html(text);
+    $("#table_collectes_infos").DataTable().draw();
+  }
+
+  function getTSStatus() {
+    $("#admin_ts_infos_span").html(
+      '<span class="badge text-bg-warning">...</span>'
+    );
+    $.ajax({
+      type: "get",
+      url: "/admintimesketchstatus",
+      success: function (data) {
+        if (data) {
+          if (data.status) {
+            $("#admin_ts_infos_span").html(
+              '<span class="badge text-bg-success">online</span>'
+            );
+          } else {
+            $("#admin_ts_infos_span").html(
+              '<span class="badge text-bg-danger">offline</span>'
+            );
+          }
+        } else {
+          $("#admin_ts_infos_span").html(
+            '<span class="badge text-bg-warning">...</span>'
+          );
+        }
+      },
+      error: function (data) {
+        $("#admin_ts_infos_span").html(
+          '<span class="badge text-bg-danger">error</span>'
+        );
+      },
+    });
+  }
+
+  function getTSSketchs() {
+    $.ajax({
+      type: "get",
+      url: "/admintimesketchlistsketchs",
+      success: function (data) {
+        if (data) {
+          display_sketchs_infos(data.sketchs);
+        }
+      },
+      error: function (data) {
+        generate_toast(
+          "get_sketshs",
+          "Erreur lors du chargement des sketchs",
+          "text-bg-danger"
+        );
+      },
+    });
+  }
+
+  function getHayabusaVersion() {
+    $("#admin_hayabusa_version_span").html("...");
+    $.ajax({
+      type: "get",
+      url: "/adminhayabusaversion",
+      success: function (data) {
+        if (data) {
+          if (data.version) {
+            $("#admin_hayabusa_version_span").html(data.version);
+          } else if (data.error) {
+            $("#admin_hayabusa_version_span").html(data.error);
+          }
+        } else {
+          $("#admin_hayabusa_version_span").html("...");
+        }
+      },
+      error: function (data) {
+        $("#admin_hayabusa_version_span").html(
+          '<span class="badge text-bg-danger">error</span>'
+        );
+      },
+    });
+  }
+
+  function uploadHayabusa() {
+    $("#admin_hayabusa_archive").trigger("click");
+  }
+
+  function display_sketchs_infos(sketchs = {}) {
+    var text = "";
+    for (const [key, value] of Object.entries(sketchs)) {
+      text += "<tr>";
+      text += "<td>" + value["id"] + "</td>";
+      text += "<td>" + value["Name"] + "</td>";
+      text += "<td><a href='{{timesketchurl}}/sketch/" + value["id"] + "'target='_blank'>Link</a></td>";
+      text += '<td><span class="badge text-bg-light" id="delete_sketch_' +value["id"] +'" type="button" onclick="remove_sketch('+ value["id"] +')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash3" viewBox="0 0 16 16"><path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5M11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3A1.5 1.5 0 0 0 5 1.5v1H1.5a.5.5 0 0 0 0 1h.538l.853 10.66A2 2 0 0 0 4.885 16h6.23a2 2 0 0 0 1.994-1.84l.853-10.66h.538a.5.5 0 0 0 0-1zm1.958 1-.846 10.58a1 1 0 0 1-.997.92h-6.23a1 1 0 0 1-.997-.92L3.042 3.5zm-7.487 1a.5.5 0 0 1 .528.47l.5 8.5a.5.5 0 0 1-.998.06L5 5.03a.5.5 0 0 1 .47-.53Zm5.058 0a.5.5 0 0 1 .47.53l-.5 8.5a.5.5 0 1 1-.998-.06l.5-8.5a.5.5 0 0 1 .528-.47M8 4.5a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5"/></svg></span></td>';
+      text += "</tr>";
+    }
+    $("#table_sketchs_infos").DataTable().destroy();
+    $("#tbody_sketchs_infos").html(text);
+    $("#table_sketchs_infos").DataTable();
+  }
+
+  function display_indices_infos(indices = {}) {
+    var text = "";
+    for (const [key, value] of Object.entries(indices)) {
+      text += "<tr>";
+      text += "<td>" + value["Name"] + "</td>";
+      text += '<td><span class="badge text-bg-light" id="delete_indice_' +value["Name"] +'" type="button" onclick="remove_indice(\''+ value["Name"] +'\')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash3" viewBox="0 0 16 16"><path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5M11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3A1.5 1.5 0 0 0 5 1.5v1H1.5a.5.5 0 0 0 0 1h.538l.853 10.66A2 2 0 0 0 4.885 16h6.23a2 2 0 0 0 1.994-1.84l.853-10.66h.538a.5.5 0 0 0 0-1zm1.958 1-.846 10.58a1 1 0 0 1-.997.92h-6.23a1 1 0 0 1-.997-.92L3.042 3.5zm-7.487 1a.5.5 0 0 1 .528.47l.5 8.5a.5.5 0 0 1-.998.06L5 5.03a.5.5 0 0 1 .47-.53Zm5.058 0a.5.5 0 0 1 .47.53l-.5 8.5a.5.5 0 1 1-.998-.06l.5-8.5a.5.5 0 0 1 .528-.47M8 4.5a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5"/></svg></span></td>';
+      text += "</tr>";
+    }
+    $("#table_indices_infos").DataTable().destroy();
+    $("#tbody_indices_infos").html(text);
+    $("#table_indices_infos").DataTable();
+  }
+
+  function remove_sketch(id=0){
+    if (confirm("Are you sure you want to delete this sketch ?")) {
+      const value = {
+        id: id
+      }
+      $.ajax({
+        type: "post",
+        url: "/admindeletesketch",
+        data: JSON.stringify(value),
+        contentType: "application/json",
+        success: function (data) {
+          if(data.status == true){
+            generate_toast(
+              "remove_sketch_" + id,
+              "Sketch supprimé avec succès"
+            );
+          }
+          else{
+            generate_toast(
+            "remove_sketch_" + id,
+            "Erreur lors de la suppression du sketch",
+            "text-bg-danger"
+          );
+          }
+        },
+        error: function (data) {
+          generate_toast(
+            "remove_sketch_" + id,
+            "Erreur lors de la suppression du sketch",
+            "text-bg-danger"
+          );
+        },
+        complete: function (data) {
+          getTSSketchs();
+        },
+      });
+    }
+  }
+
+  function remove_indice(name){
+    if (confirm("Are you sure you want to delete this indice pattern : " + name + " ?")) {
+      const value = {
+        name: name
+      }
+      $.ajax({
+        type: "post",
+        url: "/admindeleteindice",
+        data: JSON.stringify(value),
+        contentType: "application/json",
+        success: function (data) {
+          if(data.status == true){
+            generate_toast(
+              "remove_indice_" + name,
+              "Indice supprimé avec succès"
+            );
+          }
+          else{
+            generate_toast(
+            "remove_indice_" + name,
+            "Erreur lors de la suppression de l'indice",
+            "text-bg-danger"
+          );
+          }
+        },
+        error: function (data) {
+          generate_toast(
+            "remove_indice_" + name,
+            "Erreur lors de la suppression de l'indice",
+            "text-bg-danger"
+          );
+        },
+        complete: function (data) {
+          getElasticIndices();
+        },
+      });
+    }
+  }
+
+  function getLSStatus() {
+    $("#admin_logstash_infos").html(
+      '<span class="badge text-bg-warning">Loading...</span>'
+    );
+    $.ajax({
+      type: "get",
+      url: "/admin_get_logstash_connections",
+      success: function (data) {
+        if (data) {
+          txt = ""
+          for (const _elem of data.connections) {
+            if (_elem["status"] === true){
+              txt += '<p class="col-6">'+ _elem["service"] +'</p><p id="admin_logstash_'+ _elem["service"] +'" class="col-6"><span class="badge text-bg-success">online</span></p>';
+            }
+            else{
+              txt += '<p class="col-6">'+ _elem["service"] +'</p><p id="admin_logstash_'+ _elem["service"] +'" class="col-6"><span class="badge text-bg-danger">offline</span></p>';
+            }
+          }
+          $("#admin_logstash_infos").html(txt)
+        }
+      },
+      error: function (data) {
+        console.log(data)
+      },
+    });
+  }
+
+  $("#admin_hayabusa_archive").change(function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    $("#loading_div").show();
+    var data = new FormData();
+    data.append("archive", $("#admin_hayabusa_archive").prop("files")[0]);
+    $.ajax({
+      xhr: function () {
+        var xhr = new window.XMLHttpRequest();
+        xhr.upload.addEventListener(
+          "progress",
+          function (evt) {
+            if (evt.lengthComputable) {
+              var percentComplete = (evt.loaded / evt.total) * 100;
+              $("#id_progress_bar")
+                .show()
+                .attr("aria-valuenow", Math.floor(percentComplete));
+              $("#id_progress_bar_txt")
+                .css("width", Math.floor(percentComplete) + "%")
+                .html(Math.floor(percentComplete) + "%");
+            }
+          },
+          false
+        );
+        return xhr;
+      },
+      url: "/admin_upload_hayabusa",
+      type: "POST",
+      data: data,
+      cache: false,
+      contentType: false,
+      processData: false,
+      dataType: "json",
+      success: function (res) {
+        if (res) {
+          var txt = "";
+          if (res.error) {
+            console.log(res.error);
+          } else {
+            getHayabusaVersion();
+            generate_toast(
+              "update_hayabusa",
+              "Hayabusa mis à jour avec succès"
+            );
+          }
+        }
+      },
+      error: function (res) {
+        if (res) {
+          console.log(res);
+        }
+        generate_toast(
+          "update_hayabusa",
+          "Erreur lors de la mise à jour d'Hayabusa",
+          "text-bg-danger"
+        );
+      },
+      complete: function () {
+        $("#id_progress_bar").hide();
+        $("#loading_div").hide();
+        $("#admin_hayabusa_archive").value = null;
+      },
+    });
+  });
+
+  function getElasticStatus() {
+    $("#admin_elastic_infos_span").html(
+      '<span class="badge text-bg-warning">...</span>'
+    );
+    $.ajax({
+      type: "get",
+      url: "/adminelasticstatus",
+      success: function (data) {
+        if (data) {
+          if (data.status) {
+            $("#admin_elastic_infos_span").html(
+              '<span class="badge text-bg-success">online</span>'
+            );
+          } else {
+            $("#admin_elastic_infos_span").html(
+              '<span class="badge text-bg-danger">offline</span>'
+            );
+          }
+        } else {
+          $("#admin_elastic_infos_span").html(
+            '<span class="badge text-bg-warning">...</span>'
+          );
+        }
+      },
+      error: function (data) {
+        $("#admin_elastic_infos_span").html(
+          '<span class="badge text-bg-danger">error</span>'
+        );
+      },
+    });
+  }
+
+  function getElasticIndices() {
+    $.ajax({
+      type: "get",
+      url: "/adminelasticlistindices",
+      success: function (data) {
+        if (data) {
+          display_indices_infos(data.clients_indices);
+        }
+      },
+      error: function (data) {
+        generate_toast(
+          "get_indices",
+          "Erreur lors du chargement des indices",
+          "text-bg-danger"
+        );
+      },
+    });
+  }
+
+  setInterval(getMachineUsage, 30000);
+  setInterval(function(){$("#alltoasts").html("");}, 30000);
+  setInterval(getAllClients, 60000);
+</script>
+{% endblock %}

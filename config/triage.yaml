@@ -1,0 +1,73 @@
+general:
+  upload: /data
+  winlogbeat: /winlogbeat
+  logfolder: /log
+  timesketch_url: ""
+  elastic_url: ""
+  elastic_port: 9200
+  logstash_url: ""
+  kibana_url: ""
+  hayabusa_bin_path: "/hayabusa/hayabusa"
+
+pipelines:
+  hayabusa: 5057
+  iis: 5053
+  evtxparser: 5054
+  adtimeline: 5056
+  volatility: 5064
+  o365: 5049
+  fortinet: 5065
+  adaudit: 5066
+  orc: 5067
+  filebeat: 5058
+
+administration:
+  Timesketch:
+    username: xxx
+    password: xxx
+  Elastic:
+    username: xxx
+    password: xxx
+
+volumes:
+  data: /data
+
+docker_images:
+  plaso:
+    image: log2timeline/plaso
+    tag: "20240317"
+  filebeat:
+    image: elastic/filebeat
+    tag: "8.9.1"
+  volatility3:
+    image: volatility3
+    tag: "2.5.0"
+
+artifacts:
+  apache:
+    - /var/log/apache/*access.log*
+    - /var/log/apache2/*access.log*
+    - /var/log/apache/*error.log*
+    - /var/log/apache2/*error.log*
+    - /etc/httpd/logs/*access.log*
+    - /etc/httpd/logs/*error.log*
+  auditd:
+    - /var/log/audit/audit.log*
+  nginx:
+    - /var/log/nginx/*access.log*
+    - /var/log/nginx/*error.log*
+  suricata:
+    - /var/log/*eve.json*
+  system:
+    - /var/log/*auth.log*
+    - /var/log/syslog*
+    - /var/log/btmp*
+    - /var/log/wtmp*
+    - /var/log/utmp*
+  tomcat:
+    - /var/log/tomcat6/*catalina*
+
+plaso_parsers:
+  - "!mft"
+  - "!usnjrnl"
+  - "!filestat"

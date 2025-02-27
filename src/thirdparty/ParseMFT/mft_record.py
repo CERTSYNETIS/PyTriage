@@ -32,6 +32,7 @@ class MftRecord:
         self.next_attrid = 0
         self.recordnum = 0
         self.filename = ""
+        self.filepath = ""
         self.si_times = {
             "crtime": WindowsTime(0, 0),
             "mtime": WindowsTime(0, 0),
@@ -574,7 +575,7 @@ class MftRecord:
             self.get_parent_record_num(),
             self.base_ref >> 48,
             self.filename,
-            "",  # Filepath (to be filled later)
+            self.filepath, #"",   Filepath (to be filled later)
             self.si_times["crtime"].dtstr,
             self.si_times["mtime"].dtstr,
             self.si_times["atime"].dtstr,
@@ -642,3 +643,6 @@ class MftRecord:
             return "Special Index"
         else:
             return "File"
+
+    def set_filepath(self, filepath:str):
+        self.filepath = filepath

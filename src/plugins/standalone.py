@@ -263,6 +263,9 @@ class Plugin(BasePlugin):
                     path=zip_destination, logger=self.logger
                 )
                 evtx_destination = os.path.join(self.standalone_dir, "EVTX")
+                triageutils.create_directory_path(
+                    path=evtx_destination, logger=self.logger
+                )
                 self.standalone_extract_zip(
                     archive=self.standalone_input_file,
                     dest=zip_destination,

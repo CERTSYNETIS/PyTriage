@@ -19,6 +19,7 @@ Actuellement, le serveur de triage effectue le traitements des collectes suivant
   - Parsing Registres (amcache, system, software, ntuser...)
   - Parsing prefetch
   - Parsing MPLog
+  - Parsing ActivitiesCache.db
 
 - HAYABUSA
 	- Exécution de Hayabusa sur les EVTX présents dans les collectes Kape, DFIR-ORC et Generaptor (ne s'exécute pas seul mais avec l'un des trois précédents)
@@ -83,6 +84,7 @@ OU
 - Parsing Registres (amcache, system, security, ntuser...)
 - Parsing prefetch
 - Parsing MPLog
+- Parsing ActivitiesCache.db
 
 #### GENERAPTOR Windows
 
@@ -101,6 +103,7 @@ OU
 - Parsing Registres (amcache, system, security, ntuser...)
 - Parsing prefetch
 - Parsing MPLog
+- Parsing ActivitiesCache.db
 
 #### DFIR-ORC
 

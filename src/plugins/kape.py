@@ -16,6 +16,7 @@ from src.thirdparty.ParseMFT.mft_analyzer import MftAnalyzer
 from src.thirdparty.ParseUSNJRNL import ParseUSNJRNL
 from src.thirdparty.ParsePrefetch import ParsePrefetch
 from src.thirdparty.ParseMPLog import ParseMPLog
+from src.thirdparty.winactivities.ParseWinactivities import ParseWinActivities
 from src import BasePlugin
 
 
@@ -67,6 +68,13 @@ class Plugin(BasePlugin):
 
         self.mplog_share = Path(os.path.join(self.kape_dir, "MPLog"))
         triageutils.create_directory_path(path=self.mplog_share, logger=self.logger)
+
+        self.activitiescache_share = Path(
+            os.path.join(self.kape_dir, "ActivitiesCache")
+        )
+        triageutils.create_directory_path(
+            path=self.activitiescache_share, logger=self.logger
+        )
 
     @triageutils.LOG
     def extract_zip(self, archive=None, dest=None, specific_files=[], logger=None):
@@ -764,6 +772,26 @@ class Plugin(BasePlugin):
             raise ex
 
     @triageutils.LOG
+    def kape_parse_activitiescache(self, logger=None):
+        try:
+            for _f in triageutils.search_files_generator(
+                src=self.mount_point,
+                pattern="ActivitiesCache.db",
+                patterninpath="ConnectedDevicesPlatform",
+                strict=True,
+            ):
+                self.info(f"[kape_parse_activitiescache] Parse: {_f}")
+                _analyzer = ParseWinActivities(
+                    DBfilepath=_f,
+                    output_folder=self.activitiescache_share,
+                    logger=self.logger,
+                )
+                _analyzer.process()
+        except Exception as ex:
+            self.error(f"[kape_parse_activitiescache] {str(ex)}")
+            raise ex
+
+    @triageutils.LOG
     def run(self, logger=None):
         """Fonction principale qui exécute tout le triage de kape
 
@@ -826,6 +854,12 @@ class Plugin(BasePlugin):
                 try:
                     self.info("[kape] Run MPLog")
                     self.kape_parse_mplog(logger=self.logger)
+                except Exception as ex:
+                    self.error(f"[Kape ERROR] {str(ex)}")
+            if self.config["run"]["kape"]["activitiescache"]:
+                try:
+                    self.info("[kape] Run ActivitiesCache")
+                    self.kape_parse_activitiescache(logger=self.logger)
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
             if self.config["run"]["kape"]["iis"]:

@@ -9,6 +9,7 @@ from src.thirdparty.ParseUSNJRNL import ParseUSNJRNL
 from src.thirdparty.ParsePrefetch import ParsePrefetch
 from src.thirdparty.ParseMFT.mft_analyzer import MftAnalyzer
 from src.thirdparty.ParseMPLog import ParseMPLog
+from src.thirdparty.winactivities.ParseWinactivities import ParseWinActivities
 from logging import Logger
 from src import BasePlugin
 import typing as t
@@ -84,6 +85,13 @@ class Plugin(BasePlugin):
 
         self.filebeat_dir = os.path.join(self.generaptor_dir, "filebeat")
         triageutils.create_directory_path(path=self.filebeat_dir, logger=self.logger)
+
+        self.activitiescache_share = os.path.join(
+            self.generaptor_dir, "ActivitiesCache"
+        )
+        triageutils.create_directory_path(
+            path=self.activitiescache_share, logger=self.logger
+        )
 
         self.log_dirs = (
             dict()
@@ -776,6 +784,26 @@ class Plugin(BasePlugin):
             raise ex
 
     @triageutils.LOG
+    def generaptor_parse_activitiescache(self, logger: Logger):
+        try:
+            for _f in triageutils.search_files_generator(
+                src=self.zip_destination,
+                pattern="ActivitiesCache.db",
+                patterninpath="ConnectedDevicesPlatform",
+                strict=True,
+            ):
+                self.info(f"[generaptor_parse_activitiescache] Parse: {_f}")
+                _analyzer = ParseWinActivities(
+                    DBfilepath=_f,
+                    output_folder=self.activitiescache_share,
+                    logger=self.logger,
+                )
+                _analyzer.process()
+        except Exception as ex:
+            self.error(f"[generaptor_parse_activitiescache] {str(ex)}")
+            raise ex
+
+    @triageutils.LOG
     def run(self, logger: Logger):
         """Fonction principale qui exécute tout le triage de generaptor
 
@@ -856,6 +884,12 @@ class Plugin(BasePlugin):
                     self.info("[generaptor] Run MPLog")
                     try:
                         self.generaptor_parse_mplog(logger=self.logger)
+                    except Exception as err_reg:
+                        self.error(f"[generaptor ERROR] {str(err_reg)}")
+                if self.config["run"]["generaptor"]["activitiescache"]:
+                    self.info("[generaptor] Run ActivitiesCache")
+                    try:
+                        self.generaptor_parse_activitiescache(logger=self.logger)
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
                 if self.config["run"]["generaptor"]["iis"]:

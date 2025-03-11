@@ -211,6 +211,19 @@
                     </li>
                     <li class="list-group-item">
                       <input
+                        id="run_kape_activitiescache"
+                        name="kape_activitiescache"
+                        class="form-check-input me-1 kape_sub_modules"
+                        type="checkbox"
+                        value=""
+                        checked
+                      />
+                      <label class="form-check-label" for="run_kape_activitiescache"
+                        >ActivitiesCache</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
                         id="run_kape_timeline"
                         name="kape_timeline"
                         class="form-check-input me-1 kape_sub_modules"
@@ -574,6 +587,19 @@
                     </li>
                     <li class="list-group-item">
                       <input
+                        id="run_orc_activitiescache"
+                        name="orc_activitiescache"
+                        class="form-check-input me-1 orc_sub_modules"
+                        type="checkbox"
+                        value=""
+                        disabled
+                      />
+                      <label class="form-check-label" for="run_orc_activitiescache"
+                        >ActivitiesCache</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
                         id="run_orc_mplog"
                         name="orc_mplog"
                         class="form-check-input me-1"
@@ -782,6 +808,19 @@
                     </li>
                     <li class="list-group-item">
                       <input
+                        id="run_generaptor_activitiescache"
+                        name="generaptor_activitiescache"
+                        class="form-check-input me-1 generaptor_sub_modules"
+                        type="checkbox"
+                        value=""
+                        checked
+                      />
+                      <label class="form-check-label" for="run_generaptor_activitiescache"
+                        >ActivitiesCache</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
                         id="run_generaptor_linux"
                         name="generaptor_linux"
                         class="form-check-input me-1 generaptor_sub_modules"
@@ -908,7 +947,9 @@
         Section pour envoyer:
         - Fichier JSONL de résultats Hayabusa
         - Archive ZIP contenant des fichiers EVTX
-        - Archive ZIP contenant des logs Fortinet (txt/log) <span class="badge text-bg-warning">attention au parsing</span> <span class="badge text-bg-light">Regex: (\w+)=(?:"([^"]*)"|(\S+))</span>
+        - Archive ZIP contenant des logs Fortinet (txt/log)
+        - Archive ZIP contenant des logs Forcepoint (txt/log)
+        <span class="badge text-bg-warning">attention au parsing</span> <span class="badge text-bg-light">Regex: (\w+)=(?:"([^"]*)"|(\S+))</span>
         </pre>
           <button
             type="button"
@@ -988,6 +1029,7 @@
                         <option value="evtxparser">EVTX</option>
                         <option value="winlogbeat">WinlogBeat</option>
                         <option value="fortinet">Fortinet</option>
+                        <option value="forcepoint">Forcepoint</option>
                       </select>
                       <label for="standaloneModal_run_plugin"
                         >Plugin</label

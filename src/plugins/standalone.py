@@ -206,6 +206,73 @@ class Plugin(BasePlugin):
             raise e
 
     @triageutils.LOG
+    def standalone_forcepoint_log(self, logs=[], logger=None):
+        """Fonction qui envoie les résultats de parsing de logs forcepoint vers ELK"""
+        try:
+            total = len(logs)
+            count = 0
+            for log_file in logs:
+                _data_to_send = []
+                try:
+                    self.info(f"[standalone_forcepoint_log] Parsing File: {log_file}")
+                    with open(log_file) as f:
+                        count += 1
+                        lines = f.readlines()
+                        for line in lines:
+                            keys = re.findall("(\w+)=", line)
+                            _v = re.findall('=(?:"([^"]*)"|(\S+))', line)
+                            vals = ["".join(x) for x in _v]
+                            try:
+                                _data = {
+                                    keys[i]: vals[i].replace('"', "").strip()
+                                    for i in range(len(keys))
+                                }
+                            except Exception as _error:
+                                self.error(
+                                    f"[standalone_forcepoint_log] _data error : {_error}"
+                                )
+                            for _k in [
+                                "ICMP_CODE",
+                                "ICMP_TYPE",
+                                "ICMP_ID",
+                                "Sport",
+                                "Dport",
+                                "PROTOCOL",
+                            ]:
+                                if _k in keys:
+                                    try:
+                                        _data[_k] = int(_data[_k])
+                                    except Exception as _error:
+                                        _data[_k] = 0
+                                        self.error(
+                                            f"[standalone_forcepoint_log] int error : {_error}"
+                                        )
+                            _data_to_send.append(_data)
+                        self.info(
+                            f"[standalone_forcepoint_log] send file {count}/{total}"
+                        )
+                except Exception as _error:
+                    self.error(f"[standalone_forcepoint_log] : {_error}")
+                ip = self.logstash_url
+                if ip.startswith("http"):
+                    ip = self.logstash_url.split("//")[1]
+                extrafields = dict()
+                extrafields["csirt"] = dict()
+                extrafields["csirt"]["client"] = self.clientname.lower()
+                extrafields["csirt"]["application"] = "forcepoint"
+                extrafields["csirt"]["hostname"] = self.hostname.lower()
+                triageutils.send_data_to_elk(
+                    data=_data_to_send,
+                    ip=ip,
+                    port=self.raw_json_port,
+                    logger=self.logger,
+                    extrafields=extrafields,
+                )
+        except Exception as e:
+            self.error(f"[standalone_forcepoint_log] {str(e)}")
+            raise e
+
+    @triageutils.LOG
     def standalone_get_log_files(self, log_folder=None, logger=None) -> list:
         """Retourne les log présents dans le dossier.
         Args:
@@ -290,7 +357,7 @@ class Plugin(BasePlugin):
                     _res = _p.parse_evtx()
                     self.info(f"[Standalone] {_res}")
             elif self.config["run"]["standalone"]["fortinet"]:
-                zip_destination = os.path.join(self.standalone_dir, "LOGS")
+                zip_destination = os.path.join(self.standalone_dir, "Fortinet")
                 triageutils.create_directory_path(
                     path=zip_destination, logger=self.logger
                 )
@@ -303,6 +370,20 @@ class Plugin(BasePlugin):
                     log_folder=zip_destination, logger=self.logger
                 )
                 self.standalone_fortinet_log(logs=forti_logs)
+            elif self.config["run"]["standalone"]["forcepoint"]:
+                zip_destination = os.path.join(self.standalone_dir, "Forcepoint")
+                triageutils.create_directory_path(
+                    path=zip_destination, logger=self.logger
+                )
+                self.standalone_extract_zip(
+                    archive=self.standalone_input_file,
+                    dest=zip_destination,
+                    logger=self.logger,
+                )
+                forcepoint_logs = self.standalone_get_log_files(
+                    log_folder=zip_destination, logger=self.logger
+                )
+                self.standalone_forcepoint_log(logs=forcepoint_logs)
         except Exception as ex:
             self.error(f"[Standalone] run {str(ex)}")
             raise ex

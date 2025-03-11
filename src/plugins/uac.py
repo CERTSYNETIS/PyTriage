@@ -252,7 +252,7 @@ class Plugin(BasePlugin):
             )
             new_config = os.path.join(self.filebeat_dir, "filebeat.docker.yml")
             with open(new_config, "w") as file:
-                yaml.dump(_data, file)
+                yaml.dump(_data, file, sort_keys=False)
         except Exception as ex:
             self.error(f"[UAC] ymlcreator - {str(ex)}")
             raise ex

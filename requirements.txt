@@ -85,3 +85,5 @@ celery==5.4.0
 flower==2.0.1
 redis==4.3.4
 docker==7.1.0
+ujson==5.10.0
+pytsk3==20231007

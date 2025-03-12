@@ -63,6 +63,7 @@ class ParseEVTX:
             _index = 0
 
             # delete previous parsed file if it exists
+            self.logger.info(f"Check if parsed file already exists...")
             delete_file(
                 src=self._output_folder / f"{self._evtx_file.stem}.jsonl",
                 logger=self.logger,

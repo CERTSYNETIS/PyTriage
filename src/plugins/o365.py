@@ -80,10 +80,14 @@ class Plugin(BasePlugin):
     def o365_send_json_results(self, json_file=None, logger=None):
         """Fonction qui envoie les résultats json o365 vers ELK"""
         try:
+            try:
+                application = json_file.stem.lower().split("_")[0]
+            except Exception as ex:
+                application = json_file.stem.lower()
             extrafields = dict()
             extrafields["csirt"] = dict()
             extrafields["csirt"]["client"] = self.clientname.lower()
-            extrafields["csirt"]["application"] = json_file.stem.lower()
+            extrafields["csirt"]["application"] = application
             extrafields["csirt"]["hostname"] = self.hostname.lower()
             ip = self.logstash_url
             if ip.startswith("http"):

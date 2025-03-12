@@ -1,7 +1,7 @@
 import subprocess
 import os
 import json
-import asyncio
+from pathlib import Path
 from src.thirdparty import triageutils as triageutils
 from src import BasePlugin
 
@@ -13,31 +13,18 @@ class Plugin(BasePlugin):
 
     def __init__(self, conf: dict):
         super().__init__(config=conf)
-
-        if triageutils.directory_exists(
-            dir=os.path.join(self.upload_dir, self.hostname, "kape", "EVTX_Orig"),
-            logger=self.logger,
-        ):
-            self.hayabusa_dir = os.path.join(
-                self.upload_dir, self.hostname, "kape", "EVTX_Orig"
+        _evtx_folder = next(
+            triageutils.search_files_by_extension_generator(
+                src=Path(conf["general"]["extracted_zip"]).parent,
+                extension=".evtx",
+                logger=self.logger,
             )
-        elif triageutils.directory_exists(
-            dir=os.path.join(self.upload_dir, self.hostname, "generaptor", "EVTX_Orig"),
-            logger=self.logger,
-        ):
-            self.hayabusa_dir = os.path.join(
-                self.upload_dir, self.hostname, "generaptor", "EVTX_Orig"
-            )
+        )
+        if _evtx_folder:
+            self.hayabusa_dir = _evtx_folder.parent
         else:
             self.error("[HAYABUSA] No evtx folder")
             raise Exception("[HAYABUSA] No evtx folder")
-        if not len(
-            triageutils.search_files(
-                src=self.hayabusa_dir, pattern=".evtx", logger=self.logger
-            )
-        ):
-            self.error("[HAYABUSA] No evtx to scan")
-            raise Exception("[HAYABUSA] No evtx to scan")
         self.output_json = (
             f"{os.path.join(self.hayabusa_dir,self.clientname)}_HAYABUSA_SIGMA.jsonl"
         )

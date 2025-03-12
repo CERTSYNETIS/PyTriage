@@ -527,16 +527,16 @@ def set_input_files():
             res["run"]["generaptor"]["timeline"] = False
             l.error(f"[set_input_files] create sketch error: {ex}")
 
-        if (
-            res["run"]["hayabusa"]
-            and not res["run"]["kape"]["evtx"]
-            and not res["run"]["generaptor"]["evtx"]
-            and not res["run"]["orc"]["evtx"]
-        ):
-            res["run"]["hayabusa"] = False
-            l.error(
-                "[set_input_files] Cannot excute Hayabusa without kape/generaptor evtx"
-            )
+        # if (
+        #     res["run"]["hayabusa"]
+        #     and not res["run"]["kape"]["evtx"]
+        #     and not res["run"]["generaptor"]["evtx"]
+        #     and not res["run"]["orc"]["evtx"]
+        # ):
+        #     res["run"]["hayabusa"] = False
+        #     l.error(
+        #         "[set_input_files] Cannot excute Hayabusa without kape/generaptor evtx"
+        #     )
         with open(os.path.join(ex_dir, "config.yaml"), "w") as config_file:
             yaml.dump(res, config_file, sort_keys=False)
             l.info(

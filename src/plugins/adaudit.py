@@ -61,7 +61,7 @@ class Plugin(BasePlugin):
             try:
                 records[e].extend(
                     triageutils.search_files_by_extension(
-                        src=self.adaudit_dir, extension=e, logger=self.logger
+                        dir=self.adaudit_dir, extension=e, logger=self.logger
                     )
                 )
             except Exception as exc:

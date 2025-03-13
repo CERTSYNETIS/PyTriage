@@ -325,13 +325,13 @@ class Plugin(BasePlugin):
                     tag=self.docker_images["filebeat"]["tag"],
                     logger=self.logger,
                 )
+                self.uac_filebeat(logger=self.logger)
             if self.config["run"]["uac"]["timeline"]:
                 self.check_docker_image(
                     image_name=self.docker_images["plaso"]["image"],
                     tag=self.docker_images["plaso"]["tag"],
                     logger=self.logger,
                 )
-                self.uac_filebeat(logger=self.logger)
                 self.uac_generate_timeline(logger=self.logger)
         except Exception as ex:
             self.error(f"[UAC] run {str(ex)}")

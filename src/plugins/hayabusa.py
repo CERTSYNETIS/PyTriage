@@ -13,21 +13,21 @@ class Plugin(BasePlugin):
 
     def __init__(self, conf: dict):
         super().__init__(config=conf)
-        _evtx_folder = next(
-            triageutils.search_files_by_extension_generator(
+        try:
+            _evtx_folder = triageutils.search_files_by_extension_generator(
                 src=Path(conf["general"]["extracted_zip"]).parent,
                 extension=".evtx",
                 logger=self.logger,
             )
-        )
-        if _evtx_folder:
-            self.hayabusa_dir = _evtx_folder.parent
-        else:
-            self.error("[HAYABUSA] No evtx folder")
-            raise Exception("[HAYABUSA] No evtx folder")
-        self.output_json = (
-            f"{os.path.join(self.hayabusa_dir,self.clientname)}_HAYABUSA_SIGMA.jsonl"
-        )
+            if _evtx_folder:
+                self.hayabusa_dir = _evtx_folder.parent
+            else:
+                self.error("[HAYABUSA] No evtx folder")
+                raise Exception("[HAYABUSA] No evtx folder")
+            self.output_json = f"{os.path.join(self.hayabusa_dir,self.clientname)}_HAYABUSA_SIGMA.jsonl"
+        except Exception as ex:
+            self.error(f"[init] {ex}")
+            raise ex
 
     @triageutils.LOG
     def exec_hayabusa(self, log_folder=None, logger=None):
@@ -70,8 +70,12 @@ class Plugin(BasePlugin):
             raise ex
 
     @triageutils.LOG
-    def send_to_elk(self, logger=None):
-        """Fonction qui envoie les résultats hayabusa vers ELK"""
+    def send_to_elk(self, logger=None) -> int:
+        """
+        Fonction qui envoie les résultats hayabusa vers ELK
+        Return:
+            number of event sent (int)
+        """
         try:
             with open(self.output_json, "r") as jsonl_f:
                 json_data = [json.loads(line) for line in jsonl_f]
@@ -103,16 +107,42 @@ class Plugin(BasePlugin):
                 extrafields["csirt"]["application"] = "alerts"
                 extrafields["csirt"]["hostname"] = self.hostname.lower()
 
-                triageutils.send_data_to_elk(
+                _event_sent = triageutils.send_data_to_elk(
                     data=json_data,
                     ip=ip,
                     port=self.hayabusa_port,
                     logger=self.logger,
                     extrafields=extrafields,
                 )
+                return _event_sent
         except Exception as e:
             self.error(f"[send_to_elk] {str(e)}")
             raise e
+
+    @triageutils.LOG
+    def send_analytics_to_elk(self, event_sent: int, logger=None):
+        try:
+            _total_events = 0
+            ip = self.logstash_url
+            if ip.startswith("http"):
+                ip = self.logstash_url.split("//")[1]
+            with open(self.output_json, "r") as jsonl_f:
+                _total_events = len(jsonl_f.readlines())
+            self.output_json = Path(self.output_json)
+            _analytics = triageutils.get_file_informations(filepath=self.output_json)
+            _analytics["numberOfLogRecords"] = _total_events
+            _analytics["numberOfEventSent"] = event_sent
+            _analytics["hostname"] = self.hostname
+            _analytics["logfilename"] = self.output_json.name
+            triageutils.send_data_to_elk(
+                data=_analytics,
+                ip=ip,
+                port=self.selfassessment_port,
+                logger=self.logger,
+            )
+        except Exception as ex:
+            self.error(f"[send_analytics_to_elk] {ex}")
+            raise ex
 
     @triageutils.LOG
     def run(self, logger=None):
@@ -125,7 +155,8 @@ class Plugin(BasePlugin):
         """
         try:
             self.exec_hayabusa(logger=self.logger)
-            self.send_to_elk(logger=self.logger)
+            _event_sent = self.send_to_elk(logger=self.logger)
+            self.send_analytics_to_elk(event_sent=_event_sent, logger=self.logger)
         except Exception as ex:
             self.error(f"[HAYABUSA] run {str(ex)}")
             raise ex

@@ -183,6 +183,7 @@ def generate_config() -> dict:
     res["run"]["kape"]["prefetch"] = False
     res["run"]["kape"]["mplog"] = False
     res["run"]["kape"]["activitiescache"] = False
+    res["run"]["kape"]["recyclebin"] = False
 
     res["run"]["uac"] = dict()
     res["run"]["uac"]["plugin"] = False
@@ -214,6 +215,7 @@ def generate_config() -> dict:
     res["run"]["generaptor"]["mplog"] = False
     res["run"]["generaptor"]["linux"] = False
     res["run"]["generaptor"]["activitiescache"] = False
+    res["run"]["generaptor"]["recyclebin"] = False
 
     res["run"]["orc"] = dict()
     res["run"]["orc"]["plugin"] = False
@@ -228,6 +230,7 @@ def generate_config() -> dict:
     res["run"]["orc"]["prefetch"] = False
     res["run"]["orc"]["mplog"] = False
     res["run"]["orc"]["activitiescache"] = False
+    res["run"]["orc"]["recyclebin"] = False
 
     res["run"]["adaudit"] = dict()
     res["run"]["adaudit"]["plugin"] = False
@@ -313,6 +316,9 @@ def set_input_files():
             res["run"]["kape"]["activitiescache"] = (
                 True if "kape_activitiescache" in request.form else False
             )
+            res["run"]["kape"]["recyclebin"] = (
+                True if "kape_recyclebin" in request.form else False
+            )
             res["run"]["kape"]["timeline"] = (
                 True if "kape_timeline" in request.form else False
             )
@@ -383,6 +389,9 @@ def set_input_files():
             res["run"]["orc"]["activitiescache"] = (
                 True if "orc_activitiescache" in request.form else False
             )
+            res["run"]["orc"]["recyclebin"] = (
+                True if "orc_recyclebin" in request.form else False
+            )
             res["run"]["orc"]["mplog"] = True if "orc_mplog" in request.form else False
             try:
                 if "orc_keyfile" in request.files:
@@ -451,6 +460,9 @@ def set_input_files():
             )
             res["run"]["generaptor"]["activitiescache"] = (
                 True if "generaptor_activitiescache" in request.form else False
+            )
+            res["run"]["generaptor"]["recyclebin"] = (
+                True if "generaptor_recyclebin" in request.form else False
             )
             res["run"]["generaptor"]["linux"] = (
                 True if "generaptor_linux" in request.form else False
@@ -527,16 +539,16 @@ def set_input_files():
             res["run"]["generaptor"]["timeline"] = False
             l.error(f"[set_input_files] create sketch error: {ex}")
 
-        # if (
-        #     res["run"]["hayabusa"]
-        #     and not res["run"]["kape"]["evtx"]
-        #     and not res["run"]["generaptor"]["evtx"]
-        #     and not res["run"]["orc"]["evtx"]
-        # ):
-        #     res["run"]["hayabusa"] = False
-        #     l.error(
-        #         "[set_input_files] Cannot excute Hayabusa without kape/generaptor evtx"
-        #     )
+        if (
+            res["run"]["hayabusa"]
+            and not res["run"]["kape"]["evtx"]
+            and not res["run"]["generaptor"]["evtx"]
+            and not res["run"]["orc"]["evtx"]
+        ):
+            # res["run"]["hayabusa"] = False
+            l.error(
+                "[set_input_files] Cannot excute Hayabusa without kape/generaptor evtx"
+            )
         with open(os.path.join(ex_dir, "config.yaml"), "w") as config_file:
             yaml.dump(res, config_file, sort_keys=False)
             l.info(

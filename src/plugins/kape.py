@@ -17,6 +17,8 @@ from src.thirdparty.ParseUSNJRNL import ParseUSNJRNL
 from src.thirdparty.ParsePrefetch import ParsePrefetch
 from src.thirdparty.ParseMPLog import ParseMPLog
 from src.thirdparty.winactivities.ParseWinactivities import ParseWinActivities
+from src.thirdparty.trashparse.ParseTrash import TrashParse
+from logging import Logger
 from src import BasePlugin
 
 
@@ -49,10 +51,10 @@ class Plugin(BasePlugin):
         self.plaso_folder = os.path.join(self.kape_dir, "plaso")
         triageutils.create_directory_path(path=self.plaso_folder, logger=self.logger)
 
-        self.evtx_share = os.path.join(self.kape_dir, "EVTX_Orig")
+        self.evtx_share = Path(os.path.join(self.kape_dir, "EVTX_Orig"))
         triageutils.create_directory_path(path=self.evtx_share, logger=self.logger)
 
-        self.evtx_parsed_share = os.path.join(self.kape_dir, "EVTX_Parsed")
+        self.evtx_parsed_share = Path(os.path.join(self.kape_dir, "EVTX_Parsed"))
         triageutils.create_directory_path(
             path=self.evtx_parsed_share, logger=self.logger
         )
@@ -60,7 +62,7 @@ class Plugin(BasePlugin):
         self.ntfs_share = Path(os.path.join(self.kape_dir, "NTFS"))
         triageutils.create_directory_path(path=self.ntfs_share, logger=self.logger)
 
-        self.reg_share = os.path.join(self.kape_dir, "REGISTRY")
+        self.reg_share = Path(os.path.join(self.kape_dir, "REGISTRY"))
         triageutils.create_directory_path(path=self.reg_share, logger=self.logger)
 
         self.iis_share = os.path.join(self.kape_dir, "iis")
@@ -69,12 +71,18 @@ class Plugin(BasePlugin):
         self.mplog_share = Path(os.path.join(self.kape_dir, "MPLog"))
         triageutils.create_directory_path(path=self.mplog_share, logger=self.logger)
 
+        self.prefetch_share = Path(os.path.join(self.kape_dir, "Prefetch"))
+        triageutils.create_directory_path(path=self.prefetch_share, logger=self.logger)
+
         self.activitiescache_share = Path(
             os.path.join(self.kape_dir, "ActivitiesCache")
         )
         triageutils.create_directory_path(
             path=self.activitiescache_share, logger=self.logger
         )
+
+        self.recyclebin_dir = Path(os.path.join(self.kape_dir, "RecycleBin"))
+        triageutils.create_directory_path(path=self.recyclebin_dir, logger=self.logger)
 
     @triageutils.LOG
     def extract_zip(self, archive=None, dest=None, specific_files=[], logger=None):
@@ -117,12 +125,12 @@ class Plugin(BasePlugin):
         """
         if not self.zip_destination:
             raise Exception("ZIP was not extracted")
-        obj = os.scandir(self.zip_destination)
-        for entry in obj:
-            if entry.is_file and entry.name.lower().endswith("vhdx"):
-                self.vhdx_file = entry.name
-                return entry.name
-        return None
+        self.vhdx_file = triageutils.search_files_by_extension(
+            dir=self.zip_destination,
+            extension=".vhdx",
+            logger=self.logger,
+        )[0]
+        return self.vhdx_file
 
     @triageutils.LOG
     def mountVHDX(self, vhdxfile=None, mountpoint=None, logger=None):
@@ -234,7 +242,7 @@ class Plugin(BasePlugin):
     @triageutils.LOG
     def check_docker_image(
         self,
-        image_name="dockerhub.cert.lan/log2timeline/plaso",
+        image_name="log2timeline/plaso",
         tag="20230717",
         logger=None,
     ):
@@ -669,8 +677,8 @@ class Plugin(BasePlugin):
             _ip = self.logstash_url
             if _ip.startswith("http"):
                 _ip = self.logstash_url.split("//")[1]
-            for _f in triageutils.search_files_generator(
-                src=self.mount_point, pattern=".evtx"
+            for _f in triageutils.search_files_by_extension_generator(
+                src=self.mount_point, extension=".evtx", logger=self.logger
             ):
                 triageutils.copy_file(
                     src=_f,
@@ -745,9 +753,12 @@ class Plugin(BasePlugin):
     def kape_parse_prefetch(self, logger=None):
         try:
             for _f in triageutils.search_files_by_extension_generator(
-                src=self.mount_point, extension=".pf", patterninpath="Prefetch"
+                src=self.mount_point,
+                extension=".pf",
+                patterninpath="prefetch",
+                logger=self.logger,
             ):
-                _output_file = Path(f"{self.ntfs_share}/{_f.parts[-1]}.json")
+                _output_file = Path(f"{self.prefetch_share}/{_f.parts[-1]}.json")
                 _analyzer = ParsePrefetch(
                     prefetch=_f,
                     output=_output_file,
@@ -772,7 +783,7 @@ class Plugin(BasePlugin):
             raise ex
 
     @triageutils.LOG
-    def kape_parse_activitiescache(self, logger=None):
+    def kape_parse_activitiescache(self, logger: Logger):
         try:
             for _f in triageutils.search_files_generator(
                 src=self.mount_point,
@@ -792,7 +803,33 @@ class Plugin(BasePlugin):
             raise ex
 
     @triageutils.LOG
-    def run(self, logger=None):
+    def kape_parse_recyclebin(self, logger: Logger):
+        try:
+            _recyclebin_folder = triageutils.get_folder_path_by_name(
+                folder_name="$Recycle.Bin", root=self.mount_point, logger=self.logger
+            )
+            if _recyclebin_folder:
+                for _dir in triageutils.list_directory_full_path(
+                    src=_recyclebin_folder,
+                    onlydirs=True,
+                    logger=self.logger,
+                ):
+                    _dir = Path(_dir)
+                    self.info(f"[kape_parse_recyclebin] Parse: {_dir}")
+                    trash = TrashParse(recyclebin_folder=_dir, logger=self.logger)
+                    trash.listfile()
+                    trash.parsefile()
+                    _output = Path(self.recyclebin_dir / Path(f"{_dir.name}.csv"))
+                    trash.write_csv(csv_file=_output)
+                    _output = Path(self.recyclebin_dir / Path(f"{_dir.name}.jsonl"))
+                    trash.write_jsonl(jsonl_file=_output)
+            else:
+                self.info("[kape_parse_recyclebin] No {$Recycle.Bin} Folder")
+        except Exception as ex:
+            self.error(f"[kape_parse_recyclebin] {ex}")
+
+    @triageutils.LOG
+    def run(self, logger: Logger):
         """Fonction principale qui exécute tout le triage de kape
 
         Args:
@@ -862,6 +899,12 @@ class Plugin(BasePlugin):
                     self.kape_parse_activitiescache(logger=self.logger)
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
+            if self.config["run"]["kape"]["recyclebin"]:
+                self.info("[kape] Run Recycle Bin")
+                try:
+                    self.kape_parse_recyclebin(logger=self.logger)
+                except Exception as err_reg:
+                    self.error(f"[kape ERROR] {str(err_reg)}")
             if self.config["run"]["kape"]["iis"]:
                 try:
                     self.info("[KAPE] Run IIS")

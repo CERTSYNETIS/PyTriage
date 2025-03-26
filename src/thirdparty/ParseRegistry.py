@@ -167,16 +167,16 @@ class ParseRegistry:
         :return:
         """
         # Not done yet
-        hv_name = file_path.name
-        reg = RegistryHive(file_path)
-        user_name = file_path.parts[-2]
-        path_out_csv = Path(
-            os.path.join(dir_out, f"{hv_name}_{user_name}.csv")
-        )  # os.path.join(dir_out, "{}_{}.csv".format(hv_name, user_name))
-        path_out_json = Path(
-            os.path.join(dir_out, f"{hv_name}_{user_name}.json")
-        )  # os.path.join(dir_out, "{}_{}.json".format(hv_name, user_name))
         try:
+            hv_name = file_path.name
+            reg = RegistryHive(file_path)
+            user_name = file_path.parts[-2]
+            path_out_csv = Path(
+                os.path.join(dir_out, f"{hv_name}_{user_name}.csv")
+            )  # os.path.join(dir_out, "{}_{}.csv".format(hv_name, user_name))
+            path_out_json = Path(
+                os.path.join(dir_out, f"{hv_name}_{user_name}.json")
+            )  # os.path.join(dir_out, "{}_{}.json".format(hv_name, user_name))
             parsed = run_relevant_plugins(reg, as_json=True)
             with open(path_out_json, "w") as outfile:
                 json.dump(parsed, outfile, indent=4)
@@ -201,51 +201,54 @@ class ParseRegistry:
         :param out_folder: str : path to result folder
         :return:
         """
+        try:
+            for _f in search_files_generator(
+                src=dir_to_reg, pattern="Amcache.hve", strict=True, logger=self.logger
+            ):
+                relative_file_path = _f
+                absolute_file_path = (
+                    relative_file_path.absolute()
+                )  # absolute is a Path object
+                self.parse_amcache(absolute_file_path, out_folder)
 
-        for _f in search_files_generator(
-            src=dir_to_reg, pattern="Amcache.hve", strict=True, logger=self.logger
-        ):
-            relative_file_path = _f
-            absolute_file_path = (
-                relative_file_path.absolute()
-            )  # absolute is a Path object
-            self.parse_amcache(absolute_file_path, out_folder)
+            for _f in search_files_generator(
+                src=dir_to_reg, pattern="SECURITY", strict=True, logger=self.logger
+            ):
+                relative_file_path = _f
+                absolute_file_path = (
+                    relative_file_path.absolute()
+                )  # absolute is a Path object
+                self.parse_security(absolute_file_path, out_folder)
 
-        for _f in search_files_generator(
-            src=dir_to_reg, pattern="SECURITY", strict=True, logger=self.logger
-        ):
-            relative_file_path = _f
-            absolute_file_path = (
-                relative_file_path.absolute()
-            )  # absolute is a Path object
-            self.parse_security(absolute_file_path, out_folder)
+            for _f in search_files_generator(
+                src=dir_to_reg, pattern="SYSTEM", strict=True, logger=self.logger
+            ):
+                relative_file_path = _f
+                absolute_file_path = (
+                    relative_file_path.absolute()
+                )  # absolute is a Path object
+                self.parse_system(absolute_file_path, out_folder)
 
-        for _f in search_files_generator(
-            src=dir_to_reg, pattern="SYSTEM", strict=True, logger=self.logger
-        ):
-            relative_file_path = _f
-            absolute_file_path = (
-                relative_file_path.absolute()
-            )  # absolute is a Path object
-            self.parse_system(absolute_file_path, out_folder)
+            for _f in search_files_generator(
+                src=dir_to_reg, pattern="SOFTWARE", strict=True, logger=self.logger
+            ):
+                relative_file_path = _f
+                absolute_file_path = (
+                    relative_file_path.absolute()
+                )  # absolute is a Path object
+                self.parse_software(absolute_file_path, out_folder)
 
-        for _f in search_files_generator(
-            src=dir_to_reg, pattern="SOFTWARE", strict=True, logger=self.logger
-        ):
-            relative_file_path = _f
-            absolute_file_path = (
-                relative_file_path.absolute()
-            )  # absolute is a Path object
-            self.parse_software(absolute_file_path, out_folder)
-
-        for _f in search_files_generator(
-            src=dir_to_reg, pattern="NTUSER.DAT", strict=True, logger=self.logger
-        ):
-            relative_file_path = _f
-            absolute_file_path = (
-                relative_file_path.absolute()
-            )  # absolute is a Path object
-            self.parse_ntuser(absolute_file_path, out_folder)
+            for _f in search_files_generator(
+                src=dir_to_reg, pattern="NTUSER.DAT", strict=True, logger=self.logger
+            ):
+                relative_file_path = _f
+                absolute_file_path = (
+                    relative_file_path.absolute()
+                )  # absolute is a Path object
+                self.parse_ntuser(absolute_file_path, out_folder)
+        except Exception as ex:
+            self.logger.error(f"[parse_all] {ex}")
+            pass
 
     def format_list_user_friendly(self, list_to_format):
         """

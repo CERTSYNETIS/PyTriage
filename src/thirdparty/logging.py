@@ -28,5 +28,5 @@ def get_logger(name: str) -> Logger:
     return _logger
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print(LOG_FOLDER)

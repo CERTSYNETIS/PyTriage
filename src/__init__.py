@@ -30,6 +30,7 @@ class BasePlugin(object):
         self.raw_json_port = internal_config["pipelines"]["fortinet"]
         self.adaudit_port = internal_config["pipelines"]["adaudit"]
         self.filebeat_port = internal_config["pipelines"]["filebeat"]
+        self.selfassessment_port = internal_config["pipelines"]["selfassessment"]
 
         self.orc_port = internal_config["pipelines"]["orc"]
         self.hayabusa_bin_path = internal_config["general"]["hayabusa_bin_path"]

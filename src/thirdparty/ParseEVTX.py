@@ -24,12 +24,14 @@ class ParseEVTX:
         hostname: str,
         mapping: dict,
         output_folder: Path,
+        analytics_port: int = 5050,
         logger=None,
     ):
         self._evtx_file = evtxfilepath
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._ip = ip
         self._port = port
+        self._analytics_port = analytics_port
         self._client = client
         self._hostname = hostname
         self.logger = logger

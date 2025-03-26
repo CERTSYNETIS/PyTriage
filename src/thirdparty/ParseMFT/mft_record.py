@@ -575,7 +575,7 @@ class MftRecord:
             self.get_parent_record_num(),
             self.base_ref >> 48,
             self.filename,
-            self.filepath, #"",   Filepath (to be filled later)
+            self.filepath,  # "",  Filepath (to be filled later)
             self.si_times["crtime"].dtstr,
             self.si_times["mtime"].dtstr,
             self.si_times["atime"].dtstr,
@@ -644,5 +644,5 @@ class MftRecord:
         else:
             return "File"
 
-    def set_filepath(self, filepath:str):
+    def set_filepath(self, filepath: str):
         self.filepath = filepath

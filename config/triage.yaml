@@ -20,6 +20,7 @@ pipelines:
   adaudit: 5066
   orc: 5067
   filebeat: 5058
+  selfassessment: 5050
 
 administration:
   Timesketch:

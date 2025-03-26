@@ -19,7 +19,7 @@ from pathlib import Path
 import zipfile_deflate64 as zipfile
 from timesketch_api_client import client
 from timesketch_import_client import importer
-
+from datetime import datetime
 from .orc_decrypt import decrypt_archive
 
 magics = {
@@ -375,7 +375,9 @@ def search_files_generator(
                 if patterninpath is not None:
                     if patterninpath in dir_path:
                         if pattern is not None:
-                            if pattern in file:
+                            if pattern == file and strict:
+                                yield Path(os.path.join(dir_path, file))
+                            elif pattern in file:
                                 yield Path(os.path.join(dir_path, file))
                         else:
                             yield Path(os.path.join(dir_path, file))
@@ -406,7 +408,7 @@ def search_files_by_extension_generator(
     for dir_path, dir_names, file_names in obj:
         for file in file_names:
             if patterninpath is not None:
-                if patterninpath in dir_path:
+                if patterninpath.lower() in dir_path.lower():
                     if file.endswith(extension):
                         yield Path(os.path.join(dir_path, file))
             elif file.endswith(extension):
@@ -827,6 +829,7 @@ def send_data_to_elk(
         extrafields (dict): paramètres supplémentaires à ajouter au dict pour envoi
 
     Returns:
+        number of event sent (int)
     """
     try:
         if not data or not ip or port == 0:
@@ -843,9 +846,9 @@ def send_data_to_elk(
         sock.connect((ip, port))
         logger.info(f"[send_data_to_elk] socket connected to : {ip}:{port}")
         logger.debug(f"[send_data_to_elk] Data type : {type(data)}")
+        count = 0
         if type(data) is list:
             total = len(data)
-            count = 0
             logger.info(f"[send_data_to_elk] Number of Data to send : {total}")
             logger.info("[send_data_to_elk] Sending...")
             _error_counter = 0
@@ -884,6 +887,7 @@ def send_data_to_elk(
             time.sleep(1 / 5000)
             try:
                 sock.send(msg.encode())
+                count += 1
             except Exception as ex:
                 logger.error(f"[send_data_to_elk] {ex} -- try reconnect...")
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -896,6 +900,8 @@ def send_data_to_elk(
             sock.close()
         logger.error(f"[send_data_to_elk] {str(e)}")
         raise e
+    finally:
+        return count
 
 
 @LOG
@@ -1336,6 +1342,54 @@ def generate_filebeat_config(
 
 
 @LOG
+def generate_fortinet_filebeat_config(
+    ip: str,
+    port: int,
+    client: str,
+    hostname: str,
+    LOGLEVEL: str = "INFO",
+    logger=LOGGER,
+) -> dict:
+    try:
+        _config = dict()
+        _config["filebeat.config"] = dict()
+        _config["filebeat.config"]["modules"] = dict()
+        _config["filebeat.config"]["modules"]["path"] = "${path.config}/modules.d/*.yml"
+        _config["filebeat.config"]["modules"]["reload.enabled"] = False
+        _config["filebeat.modules"] = list()
+        _module = dict()
+        _module["module"] = "fortinet"
+        _module["firewall"] = dict()
+        _module["firewall"]["enabled"] = True
+        _module["firewall"]["var.input"] = "file"
+        _module["firewall"]["input"] = dict()
+        _module["firewall"]["input"]["close_eof"] = True
+        _module["firewall"]["var.paths"] = ["/fortinet/**/*.log*"]
+        _config["filebeat.modules"].append(_module)
+
+        _config["output.logstash"] = dict()
+        _config["output.logstash"]["enabled"] = True
+        _config["output.logstash"]["hosts"] = [f"{ip}:{port}"]
+        _config["processors"] = list()
+        _config["processors"].append(
+            {
+                "add_fields": {
+                    "target": "csirt",
+                    "fields": {
+                        "application": "fortinet",
+                        "client": client,
+                        "hostname": hostname,
+                    },
+                }
+            }
+        )
+        return _config
+    except Exception as ex:
+        print(f"[generate_fortinet_filebeat_config] {str(ex)}")
+        return {}
+
+
+@LOG
 def update_config_file(
     data: dict, conf_file: str, LOGLEVEL: str = "INFO", logger=LOGGER
 ) -> bool:
@@ -1374,3 +1428,25 @@ def convert_json_to_jsonl(
     except Exception as ex:
         logger.error(f"[convert_json_to_jsonl] {str(ex)}")
         return False
+
+
+@LOG
+def get_file_informations(
+    filepath: Path, LOGLEVEL: str = "INFO", logger=LOGGER
+) -> dict:
+    try:
+        _res = dict()
+        _infos = os.stat(filepath)
+        _res["lastWriteTime"] = datetime.fromtimestamp(_infos.st_mtime).isoformat()
+        _res["creationTime"] = datetime.fromtimestamp(_infos.st_ctime).isoformat()
+        _res["lastAccessTime"] = datetime.fromtimestamp(_infos.st_atime).isoformat()
+        _res["fileSize"] = _infos.st_size
+        _res["filepath"] = str(filepath)
+        _res["numberOfLogRecords"] = 0
+        _res["numberOfEventSent"] = 0
+        _res["attributes"] = 0
+        return _res
+    except Exception as ex:
+        if logger:
+            logger.error(f"[get_file_informations] {ex}")
+        return {}

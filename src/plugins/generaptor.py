@@ -10,6 +10,7 @@ from src.thirdparty.ParsePrefetch import ParsePrefetch
 from src.thirdparty.ParseMFT.mft_analyzer import MftAnalyzer
 from src.thirdparty.ParseMPLog import ParseMPLog
 from src.thirdparty.winactivities.ParseWinactivities import ParseWinActivities
+from src.thirdparty.trashparse.ParseTrash import TrashParse
 from logging import Logger
 from src import BasePlugin
 import typing as t
@@ -92,6 +93,9 @@ class Plugin(BasePlugin):
         triageutils.create_directory_path(
             path=self.activitiescache_share, logger=self.logger
         )
+
+        self.recyclebin_dir = Path(os.path.join(self.generaptor_dir, "RecycleBin"))
+        triageutils.create_directory_path(path=self.recyclebin_dir, logger=self.logger)
 
         self.log_dirs = (
             dict()
@@ -228,7 +232,7 @@ class Plugin(BasePlugin):
     @triageutils.LOG
     def check_docker_image(
         self,
-        image_name="dockerhub.cert.lan/log2timeline/plaso",
+        image_name="log2timeline/plaso",
         tag="20230717",
         logger=None,
     ):
@@ -630,18 +634,6 @@ class Plugin(BasePlugin):
             _docker = docker.from_env()
 
             cmd = ["filebeat", "-e", "--once", "--strict.perms=false"]
-            config = {
-                "HostConfig": {
-                    "Binds": voldisk,
-                    "NetworkMode": "host",
-                },
-                "User": "root",
-                "AttachStdin": True,
-                "AttachStdout": True,
-                "AttachStderr": True,
-                "Cmd": cmd,
-                "Image": f'{self.docker_images["filebeat"]["image"]}:{self.docker_images["filebeat"]["tag"]}',
-            }
             container = _docker.containers.run(
                 image=f'{self.docker_images["filebeat"]["image"]}:{self.docker_images["filebeat"]["tag"]}',
                 auto_remove=True,
@@ -688,6 +680,18 @@ class Plugin(BasePlugin):
                 _res = _p.parse_evtx()
                 self.info(f"[generaptor_parse_evtx] {_res}")
 
+                # send analytics info
+                _analytics = triageutils.get_file_informations(filepath=_f)
+                _analytics["numberOfLogRecords"] = _res.get("nb_events_read", 0)
+                _analytics["numberOfEventSent"] = _res.get("nb_events_sent", 0)
+                _analytics["hostname"] = self.hostname
+                _analytics["logfilename"] = _res.get("file", "")
+                triageutils.send_data_to_elk(
+                    data=_analytics,
+                    ip=_ip,
+                    port=self.selfassessment_port,
+                    logger=self.logger,
+                )
         except Exception as ex:
             self.error(f"[generaptor_parse_evtx] {str(ex)}")
             raise ex
@@ -754,7 +758,7 @@ class Plugin(BasePlugin):
             for _f in triageutils.search_files_by_extension_generator(
                 src=self.zip_destination,
                 extension=".pf",
-                patterninpath="Prefetch",
+                patterninpath="prefetch",
                 logger=self.logger,
             ):
                 _output_file = Path(f"{self.prefetch_share}/{_f.parts[-1]}.json")
@@ -802,6 +806,34 @@ class Plugin(BasePlugin):
         except Exception as ex:
             self.error(f"[generaptor_parse_activitiescache] {str(ex)}")
             raise ex
+
+    @triageutils.LOG
+    def generaptor_parse_recyclebin(self, logger: Logger):
+        try:
+            _recyclebin_folder = triageutils.get_folder_path_by_name(
+                folder_name="$Recycle.Bin",
+                root=self.zip_destination,
+                logger=self.logger,
+            )
+            if _recyclebin_folder:
+                for _dir in triageutils.list_directory_full_path(
+                    src=_recyclebin_folder,
+                    onlydirs=True,
+                    logger=self.logger,
+                ):
+                    _dir = Path(_dir)
+                    self.info(f"[generaptor_parse_recyclebin] Parse: {_dir}")
+                    trash = TrashParse(recyclebin_folder=_dir, logger=self.logger)
+                    trash.listfile()
+                    trash.parsefile()
+                    _output = Path(self.recyclebin_dir / Path(f"{_dir.name}.csv"))
+                    trash.write_csv(csv_file=_output)
+                    _output = Path(self.recyclebin_dir / Path(f"{_dir.name}.jsonl"))
+                    trash.write_jsonl(jsonl_file=_output)
+            else:
+                self.info("[generaptor_parse_recyclebin] No {$Recycle.Bin} Folder")
+        except Exception as ex:
+            self.error(f"[generaptor_parse_recyclebin] {ex}")
 
     @triageutils.LOG
     def run(self, logger: Logger):
@@ -890,6 +922,12 @@ class Plugin(BasePlugin):
                     self.info("[generaptor] Run ActivitiesCache")
                     try:
                         self.generaptor_parse_activitiescache(logger=self.logger)
+                    except Exception as err_reg:
+                        self.error(f"[generaptor ERROR] {str(err_reg)}")
+                if self.config["run"]["generaptor"]["recyclebin"]:
+                    self.info("[generaptor] Run Recycle Bin")
+                    try:
+                        self.generaptor_parse_recyclebin(logger=self.logger)
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
                 if self.config["run"]["generaptor"]["iis"]:

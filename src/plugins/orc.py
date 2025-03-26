@@ -98,13 +98,14 @@ class Plugin(BasePlugin):
 
             _new_path = Path(_path) / Path(_new_name)
 
-            if triageutils.file_exists(file=_new_path):
+            if triageutils.file_exists(file=_new_path, LOGLEVEL="NOLOG"):
                 self.info(f"[rename_orc_file] File exists !")
                 _parent = Path(_path) / Path(str(round(time.time() * 1000)))
-                triageutils.create_directory_path(path=_parent)
+                triageutils.create_directory_path(path=_parent, LOGLEVEL="NOLOG")
                 _new_path = _parent / Path(_new_name).name
-                self.info(f"[rename_orc_file] New Path: {_new_path}")
-            triageutils.move_file(src=filepath, dst=_new_path, logger=self.logger)
+            triageutils.move_file(
+                src=filepath, dst=_new_path, logger=self.logger, LOGLEVEL="NOLOG"
+            )
             return _new_path
         except Exception as ex:
             self.error(f"[rename_orc_file] {ex}")

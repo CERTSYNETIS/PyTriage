@@ -1,6 +1,8 @@
 import os
 import json
 import re
+import yaml
+import docker
 from pathlib import Path
 from src.thirdparty import triageutils as triageutils
 from src.thirdparty.ParseEVTX import ParseEVTX
@@ -55,13 +57,28 @@ class Plugin(BasePlugin):
                 extrafields["csirt"]["client"] = self.clientname.lower()
                 extrafields["csirt"]["application"] = "alerts"
                 extrafields["csirt"]["hostname"] = self.hostname.lower()
-                triageutils.send_data_to_elk(
+                _event_sent = triageutils.send_data_to_elk(
                     data=json_data,
                     ip=ip,
                     port=self.hayabusa_port,
                     logger=self.logger,
                     extrafields=extrafields,
                 )
+            # Send analytics
+            self.standalone_input_file = Path(self.standalone_input_file)
+            _analytics = triageutils.get_file_informations(
+                filepath=self.standalone_input_file
+            )
+            _analytics["numberOfLogRecords"] = len(json_data)
+            _analytics["numberOfEventSent"] = _event_sent
+            _analytics["hostname"] = self.hostname
+            _analytics["logfilename"] = self.standalone_input_file.name
+            triageutils.send_data_to_elk(
+                data=_analytics,
+                ip=ip,
+                port=self.selfassessment_port,
+                logger=self.logger,
+            )
         except Exception as e:
             self.error(f"[standalone_hayabusa] {str(e)}")
             raise e
@@ -136,7 +153,7 @@ class Plugin(BasePlugin):
         return result
 
     @triageutils.LOG
-    def standalone_fortinet_log(self, logs=[], logger=None):
+    def standalone_fortinet_log_old(self, logs=[], logger=None):
         """Fonction qui envoie les résultats de parsing de logs fortinet vers ELK"""
         try:
             total = len(logs)
@@ -201,6 +218,49 @@ class Plugin(BasePlugin):
                     logger=self.logger,
                     extrafields=extrafields,
                 )
+        except Exception as e:
+            self.error(f"[standalone_fortinet_log] {str(e)}")
+            raise e
+
+    @triageutils.LOG
+    def standalone_fortinet_filebeat(self, log_folder: str, logger=None):
+        """Fonction qui exeécute filebeat sur logs fortinet et les envoie vers ELK"""
+        try:
+            ip = self.logstash_url
+            if ip.startswith("http"):
+                ip = self.logstash_url.split("//")[1]
+            _config = triageutils.generate_fortinet_filebeat_config(
+                ip=ip,
+                port=self.filebeat_port,
+                client=self.clientname.lower(),
+                hostname=self.hostname.lower(),
+                logger=self.logger,
+            )
+            new_config = Path(self.standalone_dir) / Path("filebeat.docker.yml")
+            with open(new_config, "w") as file:
+                yaml.dump(_config, file, sort_keys=False)
+            voldisk = [
+                f"{log_folder}:/fortinet",
+                f"{new_config}:/usr/share/filebeat/filebeat.yml:ro",
+            ]
+            print(f"VolDirs: {voldisk}")
+
+            print("Start DOCKER FileBeat")
+            _docker = docker.from_env()
+            cmd = ["filebeat", "-e", "--once", "--strict.perms=false"]
+            container = _docker.containers.run(
+                image=f'{self.docker_images["filebeat"]["image"]}:{self.docker_images["filebeat"]["tag"]}',
+                auto_remove=True,
+                detach=True,
+                command=cmd,
+                volumes=voldisk,
+                network_mode="host",
+                stderr=True,
+                stdout=True,
+                name=f"{self.clientname}-{self.hostname}-FILEBEAT-FORTINET",
+            )
+            container.wait()
+            self.info("END DOCKER FileBeat")
         except Exception as e:
             self.error(f"[standalone_fortinet_log] {str(e)}")
             raise e
@@ -356,6 +416,18 @@ class Plugin(BasePlugin):
                     )
                     _res = _p.parse_evtx()
                     self.info(f"[Standalone] {_res}")
+                    # send analytics info
+                    _analytics = triageutils.get_file_informations(filepath=_f)
+                    _analytics["numberOfLogRecords"] = _res.get("nb_events_read", 0)
+                    _analytics["numberOfEventSent"] = _res.get("nb_events_sent", 0)
+                    _analytics["hostname"] = self.hostname
+                    _analytics["logfilename"] = _res.get("file", "")
+                    triageutils.send_data_to_elk(
+                        data=_analytics,
+                        ip=_ip,
+                        port=self.selfassessment_port,
+                        logger=self.logger,
+                    )
             elif self.config["run"]["standalone"]["fortinet"]:
                 zip_destination = os.path.join(self.standalone_dir, "Fortinet")
                 triageutils.create_directory_path(
@@ -366,10 +438,9 @@ class Plugin(BasePlugin):
                     dest=zip_destination,
                     logger=self.logger,
                 )
-                forti_logs = self.standalone_get_log_files(
+                self.standalone_fortinet_filebeat(
                     log_folder=zip_destination, logger=self.logger
                 )
-                self.standalone_fortinet_log(logs=forti_logs)
             elif self.config["run"]["standalone"]["forcepoint"]:
                 zip_destination = os.path.join(self.standalone_dir, "Forcepoint")
                 triageutils.create_directory_path(

@@ -4,8 +4,8 @@ services:
     build:
       context: ..
       dockerfile: Docker/Dockerfile
-    image: pytriage
-    container_name: pytriage
+    image: pytriage:x.x.x
+    container_name: pytriage-preprod
     volumes:
       - /data/hayabusa:/hayabusa
       - /data:/data
@@ -16,7 +16,7 @@ services:
     ports:
       - 443:8080
   worker:
-    image: pytriage
+    image: pytriage:x.x.x
     command: celery --app triage.celery worker --loglevel=info
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0

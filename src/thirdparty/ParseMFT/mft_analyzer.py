@@ -85,8 +85,8 @@ class MftAnalyzer:
                             )
 
                         # if self.stats["total_records"] % 1000 == 0:
-                        #     self.write_csv_block()
-                        #     self.mft_records.clear()
+                        #    self.write_csv_block()
+                        #    self.mft_records.clear()
 
                     except Exception as e:
                         self.logger.error(
@@ -124,7 +124,7 @@ class MftAnalyzer:
                     filepath = self.build_filepath(record)
                     record.set_filepath(filepath=filepath)
                     csv_row = record.to_csv()
-                    #csv_row[-1] = filepath
+                    # csv_row[-1] = filepath
 
                     csv_row = [str(item) for item in csv_row]
 

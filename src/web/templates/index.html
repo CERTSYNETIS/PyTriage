@@ -224,6 +224,19 @@
                     </li>
                     <li class="list-group-item">
                       <input
+                        id="run_kape_recyclebin"
+                        name="kape_recyclebin"
+                        class="form-check-input me-1 kape_sub_modules"
+                        type="checkbox"
+                        value=""
+                        checked
+                      />
+                      <label class="form-check-label" for="run_kape_recyclebin"
+                        >Recycle Bin</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
                         id="run_kape_timeline"
                         name="kape_timeline"
                         class="form-check-input me-1 kape_sub_modules"
@@ -600,6 +613,20 @@
                     </li>
                     <li class="list-group-item">
                       <input
+                        id="run_orc_recyclebin"
+                        name="orc_recyclebin"
+                        class="form-check-input me-1 orc_sub_modules"
+                        type="checkbox"
+                        value=""
+                        checked
+                        disabled
+                      />
+                      <label class="form-check-label" for="run_orc_recyclebin"
+                        >Recycle Bin</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
                         id="run_orc_mplog"
                         name="orc_mplog"
                         class="form-check-input me-1"
@@ -821,6 +848,19 @@
                     </li>
                     <li class="list-group-item">
                       <input
+                        id="run_generaptor_recyclebin"
+                        name="generaptor_recyclebin"
+                        class="form-check-input me-1 generaptor_sub_modules"
+                        type="checkbox"
+                        value=""
+                        checked
+                      />
+                      <label class="form-check-label" for="run_generaptor_recyclebin"
+                        >Recycle Bin</label
+                      >
+                    </li>
+                    <li class="list-group-item">
+                      <input
                         id="run_generaptor_linux"
                         name="generaptor_linux"
                         class="form-check-input me-1 generaptor_sub_modules"
@@ -944,12 +984,12 @@
         <div id="stabndalone_collect_card_body" class="card-body">
           <!-- Button trigger modal -->
           <pre style="text-align: left">
-        Section pour envoyer:
+        Section pour envoyer sur ELK:
         - Fichier JSONL de résultats Hayabusa
-        - Archive ZIP contenant des fichiers EVTX
-        - Archive ZIP contenant des logs Fortinet (txt/log)
-        - Archive ZIP contenant des logs Forcepoint (txt/log)
-        <span class="badge text-bg-warning">attention au parsing</span> <span class="badge text-bg-light">Regex: (\w+)=(?:"([^"]*)"|(\S+))</span>
+        - Archive ZIP contenant des fichiers EVTX (parsing Winlogbeat OU python)
+        - Archive ZIP contenant des logs Fortinet (parsing Filebeat)
+        - Archive ZIP contenant des logs Forcepoint (parsing Filebeat)
+        <span class="badge text-bg-warning" style="display:none">Attention au parsing</span> <span class="badge text-bg-light">Regex: (\w+)=(?:"([^"]*)"|(\S+))</span>
         </pre>
           <button
             type="button"

@@ -39,15 +39,16 @@ class Plugin(BasePlugin):
 
         self.zip_destination = os.path.join(self.kape_dir, "extract")
         triageutils.create_directory_path(path=self.zip_destination, logger=self.logger)
-        self.config["general"]["extracted_zip"] = f"{self.zip_destination}"
+        
+        self.mount_point = os.path.join(self.kape_dir, "mnt")
+        triageutils.create_directory_path(path=self.mount_point, logger=self.logger)
+        self.config["general"]["extracted_zip"] = f"{self.mount_point}"
         _updt = triageutils.update_config_file(
             data=self.config,
             conf_file=f'{self.config["general"]["extract"]}/config.yaml',
             logger=self.logger,
         )
 
-        self.mount_point = os.path.join(self.kape_dir, "mnt")
-        triageutils.create_directory_path(path=self.mount_point, logger=self.logger)
         self.plaso_folder = os.path.join(self.kape_dir, "plaso")
         triageutils.create_directory_path(path=self.plaso_folder, logger=self.logger)
 
@@ -125,12 +126,15 @@ class Plugin(BasePlugin):
         """
         if not self.zip_destination:
             raise Exception("ZIP was not extracted")
-        self.vhdx_file = triageutils.search_files_by_extension(
+        _res = triageutils.search_files_by_extension(
             dir=self.zip_destination,
             extension=".vhdx",
             logger=self.logger,
-        )[0]
-        return self.vhdx_file
+        )
+        if len(_res):
+            return _res[0]
+        else:
+            return None
 
     @triageutils.LOG
     def mountVHDX(self, vhdxfile=None, mountpoint=None, logger=None):
@@ -242,7 +246,7 @@ class Plugin(BasePlugin):
     @triageutils.LOG
     def check_docker_image(
         self,
-        image_name="log2timeline/plaso",
+        image_name="dockerhub.cert.lan/log2timeline/plaso",
         tag="20230717",
         logger=None,
     ):
@@ -328,7 +332,7 @@ class Plugin(BasePlugin):
                 "mft,usnjrnl",
                 "--storage_file",
                 f"{self.zip_destination}/{self.hostname}-DISK.plaso",
-                f"{self.zip_destination}/{self.vhdx_file}",
+                self.vhdx_file,
             ]
             container = _docker.containers.run(
                 image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
@@ -371,11 +375,9 @@ class Plugin(BasePlugin):
             "log2timeline.py",
             "--status_view",
             "linear",
-            "--parsers",
-            ",".join(self.kape_plaso),
-            "--storage_file",
+            "--storage-file",
             f"{self.zip_destination}/{self.hostname}-WINARTS.plaso",
-            f"{self.zip_destination}/{self.vhdx_file}",
+            self.vhdx_file,
         ]
         _docker = docker.from_env()
         container = _docker.containers.run(

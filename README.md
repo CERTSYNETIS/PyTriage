@@ -269,7 +269,7 @@ Il est possible d'activer ou non les connexions aux services tiers Timesketch, E
 
 ### Prérequis
 
-Créer les dossiers **data**, **winlogbeat**, **log** et **hayabusa** si non présents (chemin à renseigner dans les fichiers docker-compose-build/prod.yml et dans config/triage.yaml *volumes => data* qui est le volume hôte à monter donc ici ./data)
+Créer les dossiers **data**, **winlogbeat**, **log** et **hayabusa** si non présents (chemin à renseigner dans les fichiers docker-compose.yml et dans config/triage.yaml *volumes => data* qui est le volume hôte à monter donc ici ./data)
 ```bash
 mkdir ./data
 mkdir ./winlogbeat

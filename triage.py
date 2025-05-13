@@ -125,8 +125,8 @@ def home():
     admin_get_ts_status()
     return render_template(
         "index.html",
-        timesketchurl=INTERNAL_CONFIG["general"]["timesketch_url"],
-        elkurl=INTERNAL_CONFIG["general"]["kibana_url"],
+        timesketchurl=INTERNAL_CONFIG["administration"]["Timesketch"]["url"],
+        elkurl=INTERNAL_CONFIG["administration"]["Kibana"]["url"],
     )
 
 
@@ -134,8 +134,12 @@ def home():
 def admin_page():
     return render_template(
         "admin.html",
-        timesketchurl=INTERNAL_CONFIG["general"]["timesketch_url"],
-        elkurl=INTERNAL_CONFIG["general"]["kibana_url"],
+        timesketchurl=INTERNAL_CONFIG["administration"]["Timesketch"]["url"],
+        elkurl=INTERNAL_CONFIG["administration"]["Kibana"]["url"],
+        is_timesketch_active=INTERNAL_CONFIG["administration"]["Timesketch"]["active"],
+        is_elastic_active=INTERNAL_CONFIG["administration"]["Elastic"]["active"],
+        is_logstash_active=INTERNAL_CONFIG["administration"]["Logstash"]["active"],
+        is_winlogbeat_active=INTERNAL_CONFIG["administration"]["Winlogbeat"]["active"],
     )
 
 
@@ -150,8 +154,8 @@ def collecte_page(uuid: str = None):
         return home()
     return render_template(
         "collecte_details.html",
-        timesketchurl=INTERNAL_CONFIG["general"]["timesketch_url"],
-        elkurl=INTERNAL_CONFIG["general"]["kibana_url"],
+        timesketchurl=INTERNAL_CONFIG["administration"]["Timesketch"]["url"],
+        elkurl=INTERNAL_CONFIG["administration"]["Kibana"]["url"],
         config=_config,
     )
 
@@ -216,6 +220,10 @@ def generate_config() -> dict:
     res["run"]["generaptor"]["linux"] = False
     res["run"]["generaptor"]["activitiescache"] = False
     res["run"]["generaptor"]["recyclebin"] = False
+
+    res["run"]["mail"] = dict()
+    res["run"]["mail"]["plugin"] = False
+    res["run"]["mail"]["attachments"] = False
 
     res["run"]["orc"] = dict()
     res["run"]["orc"]["plugin"] = False
@@ -295,200 +303,210 @@ def set_input_files():
         res["path"] = ex_dir
         res["log_file"] = f"{collecte_id}.log"
 
-        ##RUN KAPE
-        res["run"]["kape"]["plugin"] = True if "kape" in request.form else False
-        if res["run"]["kape"]["plugin"]:
-            res["run"]["kape"]["evtx"] = True if "kape_evtx" in request.form else False
-            res["run"]["kape"]["iis"] = True if "kape_iis" in request.form else False
-            res["run"]["kape"]["registry"] = (
-                True if "kape_registry" in request.form else False
-            )
-            res["run"]["kape"]["mft"] = True if "kape_mft" in request.form else False
-            res["run"]["kape"]["usnjrnl"] = (
-                True if "kape_usnjrnl" in request.form else False
-            )
-            res["run"]["kape"]["prefetch"] = (
-                True if "kape_prefetch" in request.form else False
-            )
-            res["run"]["kape"]["mplog"] = (
-                True if "kape_mplog" in request.form else False
-            )
-            res["run"]["kape"]["activitiescache"] = (
-                True if "kape_activitiescache" in request.form else False
-            )
-            res["run"]["kape"]["recyclebin"] = (
-                True if "kape_recyclebin" in request.form else False
-            )
-            res["run"]["kape"]["timeline"] = (
-                True if "kape_timeline" in request.form else False
-            )
-            res["run"]["kape"]["winlogbeat"] = (
-                True if "kape_evtx_winlogbeat" in request.form else False
-            )
-            if not res["run"]["kape"]["evtx"]:
-                res["run"]["kape"]["winlogbeat"] = False
-
-        ##RUN UAC
-        res["run"]["uac"]["plugin"] = True if "uac" in request.form else False
-        if res["run"]["uac"]["plugin"]:
-            res["run"]["uac"]["filebeat"] = (
-                True if "uac_filebeat" in request.form else False
-            )
-            res["run"]["uac"]["timeline"] = (
-                True if "uac_timeline" in request.form else False
-            )
-
-        ##RUN VOLATILITY
-        res["run"]["volatility"]["plugin"] = (
-            True if "volatility" in request.form else False
-        )
-        if res["run"]["volatility"]["plugin"]:
-            res["run"]["volatility"]["pslist"] = (
-                True if "volatility_pslist" in request.form else False
-            )
-            res["run"]["volatility"]["pstree"] = (
-                True if "volatility_pstree" in request.form else False
-            )
-            res["run"]["volatility"]["netscan"] = (
-                True if "volatility_netscan" in request.form else False
-            )
-            res["run"]["volatility"]["netstat"] = (
-                True if "volatility_netstat" in request.form else False
-            )
-
-        ##RUN ADTIMELINE
-        res["run"]["adtimeline"] = True if "adtimeline" in request.form else False
-
-        ##RUN O365
-        res["run"]["o365"] = True if "o365" in request.form else False
-
-        ##RUN ORC
-        res["run"]["orc"]["plugin"] = True if "orc" in request.form else False
-        if res["run"]["orc"]["plugin"]:
-            res["run"]["orc"]["private_key_file"] = ""
-            res["run"]["orc"]["evtx"] = True if "orc_evtx" in request.form else False
-            res["run"]["orc"]["winlogbeat"] = (
-                True if "orc_evtx_winlogbeat" in request.form else False
-            )
-            if not res["run"]["orc"]["evtx"]:
-                res["run"]["orc"]["winlogbeat"] = False
-            res["run"]["orc"]["iis"] = True if "orc_iis" in request.form else False
-            res["run"]["orc"]["registry"] = (
-                True if "orc_registry" in request.form else False
-            )
-            res["run"]["orc"]["mft"] = True if "orc_mft" in request.form else False
-            res["run"]["orc"]["usnjrnl"] = (
-                True if "orc_usnjrnl" in request.form else False
-            )
-            res["run"]["orc"]["timeline"] = (
-                True if "orc_timeline" in request.form else False
-            )
-            res["run"]["orc"]["prefetch"] = (
-                True if "orc_prefetch" in request.form else False
-            )
-            res["run"]["orc"]["activitiescache"] = (
-                True if "orc_activitiescache" in request.form else False
-            )
-            res["run"]["orc"]["recyclebin"] = (
-                True if "orc_recyclebin" in request.form else False
-            )
-            res["run"]["orc"]["mplog"] = True if "orc_mplog" in request.form else False
-            try:
-                if "orc_keyfile" in request.files:
-                    if request.files["orc_keyfile"]:
-                        uploaded_file = request.files["orc_keyfile"]
-                        filename = secure_filename(uploaded_file.filename)
-                        uploaded_file.save(os.path.join(ex_dir, filename))
-                        res["run"]["orc"]["private_key_file"] = filename
-            except Exception as file_error:
-                filename = "ERROR_filename"
-                res["run"]["orc"]["private_key_file"] = filename
-                l.error(
-                    f"[set_input_files] ORC private key file upload error: {file_error}"
+        _selected_plugin = request.form.get("selected_plugin", "")
+        match _selected_plugin:
+            case "kape":
+                ##RUN KAPE
+                res["run"]["kape"]["plugin"] = True
+                res["run"]["kape"]["evtx"] = True if "windows_evtx" in request.form else False
+                if not res["run"]["kape"]["evtx"]:
+                    res["run"]["kape"]["winlogbeat"] = False
+                    res["run"]["hayabusa"] = False
+                else:
+                    res["run"]["kape"]["winlogbeat"] = (
+                        True if "windows_evtx_winlogbeat" in request.form else False
+                    )
+                    res["run"]["hayabusa"] = (
+                        True if "windows_hayabusa" in request.form else False
+                    )
+                res["run"]["kape"]["iis"] = True if "windows_iis" in request.form else False
+                res["run"]["kape"]["registry"] = (
+                    True if "windows_registry" in request.form else False
                 )
-                res[
-                    "error"
-                ] = f"[set_input_files] ORC private key file upload error: {file_error}"
-
-        ##RUN ADAUDIT
-        res["run"]["adaudit"]["plugin"] = True if "adaudit" in request.form else False
-
-        ##RUN GENERAPTOR
-        res["run"]["generaptor"]["plugin"] = (
-            True if "generaptor" in request.form else False
-        )
-        if res["run"]["generaptor"]["plugin"]:
-            if not request.form.get("generaptor_private_key_secret", ""):
-                raise Exception("No generaptor private key secret")
-
-            res["run"]["generaptor"]["private_key_file"] = ""
-            _AESprivkey = AESCipher(key=collecte_id)
-            _ciphered_key = _AESprivkey.encrypt(
-                raw=request.form.get("generaptor_private_key_secret")
-            )
-            res["run"]["generaptor"]["private_key_secret"] = _ciphered_key.decode(
-                "utf-8"
-            )
-            res["run"]["generaptor"]["evtx"] = (
-                True if "generaptor_evtx" in request.form else False
-            )
-            res["run"]["generaptor"]["winlogbeat"] = (
-                True if "generaptor_evtx_winlogbeat" in request.form else False
-            )
-            if not res["run"]["generaptor"]["evtx"]:
-                res["run"]["generaptor"]["winlogbeat"] = False
-            res["run"]["generaptor"]["iis"] = (
-                True if "generaptor_iis" in request.form else False
-            )
-            res["run"]["generaptor"]["registry"] = (
-                True if "generaptor_registry" in request.form else False
-            )
-            res["run"]["generaptor"]["mft"] = (
-                True if "generaptor_mft" in request.form else False
-            )
-            res["run"]["generaptor"]["usnjrnl"] = (
-                True if "generaptor_usnjrnl" in request.form else False
-            )
-            res["run"]["generaptor"]["timeline"] = (
-                True if "generaptor_timeline" in request.form else False
-            )
-            res["run"]["generaptor"]["prefetch"] = (
-                True if "generaptor_prefetch" in request.form else False
-            )
-            res["run"]["generaptor"]["mplog"] = (
-                True if "generaptor_mplog" in request.form else False
-            )
-            res["run"]["generaptor"]["activitiescache"] = (
-                True if "generaptor_activitiescache" in request.form else False
-            )
-            res["run"]["generaptor"]["recyclebin"] = (
-                True if "generaptor_recyclebin" in request.form else False
-            )
-            res["run"]["generaptor"]["linux"] = (
-                True if "generaptor_linux" in request.form else False
-            )
-            try:
-                if "generaptor_private_key_file" in request.files:
-                    if request.files["generaptor_private_key_file"]:
-                        uploaded_file = request.files["generaptor_private_key_file"]
-                        filename = secure_filename(uploaded_file.filename)
-                        uploaded_file.save(os.path.join(ex_dir, filename))
-                        res["run"]["generaptor"]["private_key_file"] = filename
-                    else:
-                        raise Exception("No private key send")
-            except Exception as file_error:
-                filename = "ERROR_filename"
-                res["run"]["generaptor"]["private_key_file"] = filename
-                l.error(
-                    f"[set_input_files] GENERAPTOR private key file upload error: {file_error}"
+                res["run"]["kape"]["mft"] = True if "windows_mft" in request.form else False
+                res["run"]["kape"]["usnjrnl"] = (
+                    True if "windows_usnjrnl" in request.form else False
                 )
-                res[
-                    "error"
-                ] = f"[set_input_files] GENERAPTOR private key file upload error: {file_error}"
-
-        ##RUN HAYABUSA
-        res["run"]["hayabusa"] = True if "hayabusa" in request.form else False
-
+                res["run"]["kape"]["prefetch"] = (
+                    True if "windows_prefetch" in request.form else False
+                )
+                res["run"]["kape"]["mplog"] = (
+                    True if "windows_mplog" in request.form else False
+                )
+                res["run"]["kape"]["activitiescache"] = (
+                    True if "windows_activitiescache" in request.form else False
+                )
+                res["run"]["kape"]["recyclebin"] = (
+                    True if "windows_recyclebin" in request.form else False
+                )
+                res["run"]["kape"]["timeline"] = (
+                    True if "windows_timeline" in request.form else False
+                )
+            case "uac":
+                ##RUN UAC
+                res["run"]["uac"]["plugin"] = True
+                res["run"]["uac"]["filebeat"] = (
+                    True if "uac_filebeat" in request.form else False
+                )
+                res["run"]["uac"]["timeline"] = (
+                    True if "uac_timeline" in request.form else False
+                )
+            case "mail":
+                ##RUN MAIL PLUGIN
+                res["run"]["mail"]["plugin"] = True
+                res["run"]["mail"]["attachments"] = (
+                    True if "mail_attachments" in request.form else False
+                )
+            case "volatility":
+                ##RUN VOLATILITY
+                res["run"]["volatility"]["plugin"] = True
+                res["run"]["volatility"]["pslist"] = (
+                    True if "volatility_pslist" in request.form else False
+                )
+                res["run"]["volatility"]["pstree"] = (
+                    True if "volatility_pstree" in request.form else False
+                )
+                res["run"]["volatility"]["netscan"] = (
+                    True if "volatility_netscan" in request.form else False
+                )
+                res["run"]["volatility"]["netstat"] = (
+                    True if "volatility_netstat" in request.form else False
+                )
+            case "adtimeline":
+                ##RUN ADTIMELINE
+                res["run"]["adtimeline"] = True
+            case "o365":
+                ##RUN O365
+                res["run"]["o365"] = True
+            case "orc":
+                ##RUN ORC
+                res["run"]["orc"]["plugin"] = True
+                res["run"]["orc"]["private_key_file"] = ""
+                res["run"]["orc"]["evtx"] = True if "windows_evtx" in request.form else False
+                if not res["run"]["orc"]["evtx"]:
+                    res["run"]["orc"]["winlogbeat"] = False
+                    res["run"]["hayabusa"] = False
+                else:
+                    res["run"]["orc"]["winlogbeat"] = (
+                        True if "windows_evtx_winlogbeat" in request.form else False
+                    )
+                    res["run"]["hayabusa"] = (
+                        True if "windows_hayabusa" in request.form else False
+                    )
+                res["run"]["orc"]["iis"] = True if "windows_iis" in request.form else False
+                res["run"]["orc"]["registry"] = (
+                    True if "windows_registry" in request.form else False
+                )
+                res["run"]["orc"]["mft"] = True if "windows_mft" in request.form else False
+                res["run"]["orc"]["usnjrnl"] = (
+                    True if "windows_usnjrnl" in request.form else False
+                )
+                res["run"]["orc"]["timeline"] = (
+                    True if "windows_timeline" in request.form else False
+                )
+                res["run"]["orc"]["prefetch"] = (
+                    True if "windows_prefetch" in request.form else False
+                )
+                res["run"]["orc"]["activitiescache"] = False
+                res["run"]["orc"]["recyclebin"] = False
+                res["run"]["orc"]["mplog"] = False
+                try:
+                    if "orc_keyfile" in request.files:
+                        if request.files["orc_keyfile"]:
+                            uploaded_file = request.files["orc_keyfile"]
+                            filename = secure_filename(uploaded_file.filename)
+                            uploaded_file.save(os.path.join(ex_dir, filename))
+                            res["run"]["orc"]["private_key_file"] = filename
+                except Exception as file_error:
+                    filename = "ERROR_filename"
+                    res["run"]["orc"]["private_key_file"] = filename
+                    l.error(
+                        f"[set_input_files] ORC private key file upload error: {file_error}"
+                    )
+                    res[
+                        "error"
+                    ] = f"[set_input_files] ORC private key file upload error: {file_error}"
+            case "adaudit":
+                ##RUN ADAUDIT
+                res["run"]["adaudit"]["plugin"] = True
+            case "generaptor":
+                ##RUN GENERAPTOR
+                res["run"]["generaptor"]["plugin"] = True
+                if not request.form.get("generaptor_private_key_secret", ""):
+                    raise Exception("No generaptor private key secret")
+                res["run"]["generaptor"]["private_key_file"] = ""
+                _AESprivkey = AESCipher(key=collecte_id)
+                _ciphered_key = _AESprivkey.encrypt(
+                    raw=request.form.get("generaptor_private_key_secret")
+                )
+                res["run"]["generaptor"]["private_key_secret"] = _ciphered_key.decode(
+                    "utf-8"
+                )
+                res["run"]["generaptor"]["evtx"] = (
+                    True if "windows_evtx" in request.form else False
+                )
+                if not res["run"]["generaptor"]["evtx"]:
+                    res["run"]["generaptor"]["winlogbeat"] = False
+                    res["run"]["hayabusa"] = False
+                else:
+                    res["run"]["generaptor"]["winlogbeat"] = (
+                        True if "windows_evtx_winlogbeat" in request.form else False
+                    )
+                    res["run"]["hayabusa"] = (
+                        True if "windows_hayabusa" in request.form else False
+                    )
+                if not res["run"]["generaptor"]["evtx"]:
+                    res["run"]["generaptor"]["winlogbeat"] = False
+                res["run"]["generaptor"]["iis"] = (
+                    True if "windows_iis" in request.form else False
+                )
+                res["run"]["generaptor"]["registry"] = (
+                    True if "windows_registry" in request.form else False
+                )
+                res["run"]["generaptor"]["mft"] = (
+                    True if "windows_mft" in request.form else False
+                )
+                res["run"]["generaptor"]["usnjrnl"] = (
+                    True if "windows_usnjrnl" in request.form else False
+                )
+                res["run"]["generaptor"]["timeline"] = (
+                    True if "windows_timeline" in request.form else False
+                )
+                res["run"]["generaptor"]["prefetch"] = (
+                    True if "windows_prefetch" in request.form else False
+                )
+                res["run"]["generaptor"]["mplog"] = (
+                    True if "windows_mplog" in request.form else False
+                )
+                res["run"]["generaptor"]["activitiescache"] = (
+                    True if "windows_activitiescache" in request.form else False
+                )
+                res["run"]["generaptor"]["recyclebin"] = (
+                    True if "windows_recyclebin" in request.form else False
+                )
+                res["run"]["generaptor"]["linux"] = (
+                    True if "generaptor_linux" in request.form else False
+                )
+                try:
+                    if "generaptor_private_key_file" in request.files:
+                        if request.files["generaptor_private_key_file"]:
+                            uploaded_file = request.files["generaptor_private_key_file"]
+                            filename = secure_filename(uploaded_file.filename)
+                            uploaded_file.save(os.path.join(ex_dir, filename))
+                            res["run"]["generaptor"]["private_key_file"] = filename
+                        else:
+                            raise Exception("No private key send")
+                except Exception as file_error:
+                    filename = "ERROR_filename"
+                    res["run"]["generaptor"]["private_key_file"] = filename
+                    l.error(
+                        f"[set_input_files] GENERAPTOR private key file upload error: {file_error}"
+                    )
+                    res[
+                        "error"
+                    ] = f"[set_input_files] GENERAPTOR private key file upload error: {file_error}"
+            case _:
+                raise Exception("No valid plugin selected")
         try:
             uploaded_file = request.files["archive"]
             filename = secure_filename(uploaded_file.filename)
@@ -511,7 +529,7 @@ def set_input_files():
                 res["run"]["kape"]["timeline"]
                 or res["run"]["uac"]["timeline"]
                 or res["run"]["generaptor"]["timeline"]
-            ):
+            ) and INTERNAL_CONFIG["administration"]["Timesketch"]["active"]:
                 _sketch = triageutils.get_sketch_by_name(
                     name=res["general"]["client"].lower(), logger=l
                 )
@@ -539,16 +557,6 @@ def set_input_files():
             res["run"]["generaptor"]["timeline"] = False
             l.error(f"[set_input_files] create sketch error: {ex}")
 
-        if (
-            res["run"]["hayabusa"]
-            and not res["run"]["kape"]["evtx"]
-            and not res["run"]["generaptor"]["evtx"]
-            and not res["run"]["orc"]["evtx"]
-        ):
-            # res["run"]["hayabusa"] = False
-            l.error(
-                "[set_input_files] Cannot excute Hayabusa without kape/generaptor evtx"
-            )
         with open(os.path.join(ex_dir, "config.yaml"), "w") as config_file:
             yaml.dump(res, config_file, sort_keys=False)
             l.info(
@@ -579,11 +587,15 @@ def replay_collecte():
         res["error"] = ""
         try:
             if (
-                res["run"]["kape"]["timeline"]
-                or res["run"]["uac"]["timeline"]
-                or res["run"]["generaptor"]["timeline"]
-                or res["run"]["orc"]["timeline"]
-            ) and res["general"]["timesketch_id"] == 0:
+                (
+                    res["run"]["kape"]["timeline"]
+                    or res["run"]["uac"]["timeline"]
+                    or res["run"]["generaptor"]["timeline"]
+                    or res["run"]["orc"]["timeline"]
+                )
+                and res["general"]["timesketch_id"] == 0
+                and INTERNAL_CONFIG["administration"]["Timesketch"]["active"]
+            ):
                 _sketch = triageutils.get_sketch_by_name(
                     name=res["general"]["client"].lower(), logger=l
                 )
@@ -605,6 +617,7 @@ def replay_collecte():
             res["general"]["timesketch_id"] = 0
             res["run"]["kape"]["timeline"] = False
             res["run"]["uac"]["timeline"] = False
+            res["run"]["orc"]["timeline"] = False
             res["run"]["generaptor"]["timeline"] = False
             l.error(f"[replay_collecte] create sketch error: {ex}")
             res["error"] = f"[replay_collecte] {ex}"
@@ -1380,15 +1393,18 @@ def admin_upload_hayabusa():
 @app.route("/admin_get_logstash_connections", methods=["GET"])
 def admin_get_logstash_connections():
     try:
-        _logstash_ip = INTERNAL_CONFIG["general"]["logstash_url"]
-        _logstash_ports = [(k, v) for k, v in INTERNAL_CONFIG["pipelines"].items()]
-        _conns = []
-        for _service, _port in _logstash_ports:
-            _temp = dict()
-            _temp["service"] = _service
-            _temp["port"] = _port
-            _temp["status"] = admin_utils.check_connection(ip=_logstash_ip, port=_port)
-            _conns.append(_temp)
+        _conns = list()
+        if INTERNAL_CONFIG["administration"]["Elastic"]["active"]:
+            _logstash_ip = INTERNAL_CONFIG["administration"]["Elastic"]["url"]
+            _logstash_ports = [(k, v) for k, v in INTERNAL_CONFIG["pipelines"].items()]
+            for _service, _port in _logstash_ports:
+                _temp = dict()
+                _temp["service"] = _service
+                _temp["port"] = _port
+                _temp["status"] = admin_utils.check_connection(
+                    ip=_logstash_ip, port=_port
+                )
+                _conns.append(_temp)
         return jsonify(connections=_conns)
     except Exception as ex:
         return jsonify(
@@ -1399,12 +1415,13 @@ def admin_get_logstash_connections():
 def check_internal_config(conf: dict = {}) -> None:
     try:
         for k, v in recursive_items(conf):
-            if k and not v:
-                raise Exception(
-                    f"[check_internal_config] Missing value for {k} in config file"
-                )
+            if k and v == "":
+                print(f"[check_internal_config] Missing value for {k} in config file")
+                # raise Exception(
+                #     f"[check_internal_config] Missing value for {k} in config file"
+                # )
     except Exception as err:
-        raise err
+        raise Exception(f"[check_internal_config] {err}")
 
 
 def main():
@@ -1423,7 +1440,7 @@ def main():
     log = logging.getLogger("werkzeug")
     log.disabled = True
     log = logging.getLogger("asyncio")
-    log.setLevel(logging.WARNING)
+    log.setLevel(logging.DEBUG)
 
     app.run(host="0.0.0.0", port=8080, debug=True, ssl_context=ssl_context)
 

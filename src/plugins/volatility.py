@@ -21,7 +21,7 @@ class Plugin(BasePlugin):
     @triageutils.LOG
     def check_docker_image(
         self,
-        image_name="volatility3",
+        image_name="dockerhub.cert.lan/volatility3",
         tag="2.5.0",
         logger=None,
     ):

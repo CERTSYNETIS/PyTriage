@@ -9,36 +9,13 @@ Le serveur de triage a pour but d'automatiser le traitement des collectes effect
 Actuellement, le serveur de triage effectue le traitements des collectes suivantes :
 
 - KAPE / DFIR-ORC / GENERAPTOR Windows
-	- Génération d'une timeline Plaso
-	- Copie des EVTX sur le partage `VM-WINLOG\winlogbeat` pour indexation par winlogbeat
-	- Parsing des EVTX et envoi vers ELK
-  - Envoi des timelines Plaso au serveur Timesketch
-  - Traitement des logs IIS
-  - Parsing MFT
-  - Parsing USNJrnl
-  - Parsing Registres (amcache, system, software, ntuser...)
-  - Parsing prefetch
-  - Parsing MPLog
-  - Parsing Windows10 Timeline (ActivitiesCache)
-  - Parsing $Recycle.Bin
-
 - HAYABUSA
-	- Exécution de Hayabusa sur les EVTX présents dans les collectes Kape, DFIR-ORC et Generaptor (ne s'exécute pas seul mais avec l'un des trois précédents)
 - UAC / GENERAPTOR Linux
-	- Indexation Filebeat des logs Linux
-  - Génération d'une timeline Plaso
 - ADTIMELINE
-	- Traitement de CSV (envoi vers ELK)
 - VOLATILITY Windows
-	- PSLIST vers ELK
-  - PSTREE vers ELK
-  - NETSCAN vers ELK
-  - NETSTAT vers ELK
 - DFIR-O365RC
-	- Parsing fichiers générés et envoi vers ELK
 - ADAUDIT
-	- Traitement de CSV (envoi vers ELK)
-
+- MAIL (pst/mbox)
 
 ## Fonctionnement
 
@@ -180,6 +157,11 @@ Les résultats générés sont parsés et envoyés à ELK.
 
 L'archive envoyée est dézippée et les fichiers json présents sont parsés puis envoyés à ELK.
 
+#### Mail
+> Ce plugin s'exécute sur les fichiers PST et MBOX. Le fichier d'entrée est une archive ZIP contenant ces fichiers.
+
+L'archive envoyée est dézippée et les fichiers PST/MBOX présents sont parsés puis envoyés à ELK. Une option est proposée pour récupérer ou non les pièces-jointes des mails.
+
 
 ### Standalone
 
@@ -265,6 +247,7 @@ class Plugin(BasePlugin):
 * [Orc-decrypt](https://github.com/DFIR-ORC/orc-decrypt)
 * [Mplog-parser](https://github.com/Intrinsec/mplog_parser)
 * [USN-Journal-Parser](https://github.com/PoorBillionaire/USN-Journal-Parser)
+* [Mail parsers](https://github.com/Intrinsec/mplog_parser)
 
 ### Images Docker
 
@@ -277,6 +260,13 @@ class Plugin(BasePlugin):
 Le serveur de triage est déployé comme un service docker.
 
 
+### Configuration
+
+La configuration est présente dans le fichier **config/triage.yaml**.
+
+Il est possible d'activer ou non les connexions aux services tiers Timesketch, ELK et Winlogbeat.
+
+
 ### Prérequis
 
 Créer les dossiers **data**, **winlogbeat**, **log** et **hayabusa** si non présents (chemin à renseigner dans les fichiers docker-compose-build/prod.yml et dans config/triage.yaml *volumes => data* qui est le volume hôte à monter donc ici ./data)
@@ -286,7 +276,8 @@ mkdir ./winlogbeat
 mkdir ./log
 mkdir ./hayabusa
 ```
-Monter le partage winlogbeat dans le dossier ci-dessus et placer le binaire hayabusa et ses dépendances dans le dossier **hayabusa**.
+- Monter le partage winlogbeat dans le dossier précédement créé
+- Placer le binaire hayabusa et ses dépendances dans le dossier précédement créé
 
 Générer les certificats SSL
 
@@ -309,4 +300,4 @@ Le service web est disponible sur https://localhost
 
 # Contributors
 
-* [A-lvu](https://github.com/a-lvu)
+* [xx](https://github.com/xx)

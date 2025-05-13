@@ -24,6 +24,7 @@ class ParseEVTX:
         hostname: str,
         mapping: dict,
         output_folder: Path,
+        logstash_is_active: bool = False,
         analytics_port: int = 5050,
         logger=None,
     ):
@@ -32,6 +33,7 @@ class ParseEVTX:
         self._ip = ip
         self._port = port
         self._analytics_port = analytics_port
+        self._logstash_is_active = logstash_is_active
         self._client = client
         self._hostname = hostname
         self.logger = logger
@@ -40,6 +42,8 @@ class ParseEVTX:
 
     def send_to_elk(self, data: dict, extrafields: dict = {}):
         try:
+            if not self._logstash_is_active:
+                return
             data.update(extrafields)
             msg = f"{json.dumps(data)}\n"
             try:

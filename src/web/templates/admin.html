@@ -9,7 +9,7 @@
     >
       <div class="card-body">
         <h5 class="card-title">
-          Gestion des collectes
+          Collectes
           <span
             class="badge text-bg-light"
             onclick="get_admin_collectes()"
@@ -70,7 +70,7 @@
       class="my-3 p-3 bg-white rounded box-shadow card"
     >
       <div class="card-body">
-        <h5 class="card-title">Gestion Hayabusa</h5>
+        <h5 class="card-title">Hayabusa</h5>
         <div id="admin_hayabusa_infos" class="row">
           <p class="col-6">Hayabusa version</p>
           <p id="admin_hayabusa_version_span" class="col-3">...</p>
@@ -114,11 +114,61 @@
     </div>
   
     <div
+      id="services_configuration_infos"
+      class="my-3 p-3 bg-white rounded box-shadow card"
+    >
+      <div class="card-body">
+        <h5 class="card-title">Third-Party Services</h5>
+        <div id="admin_module_elastic_infos" class="row">
+          <p class="col-6">Elastic</p>
+          <div class="form-check form-switch col-6">
+            {% if is_elastic_active %}
+              <span class="badge text-bg-success">activated</span>
+            {% else %}
+              <span class="badge text-bg-danger">deactivated</span>
+            {% endif %}
+            
+          </div>
+        </div>
+        <div id="admin_module_timesketch_infos" class="row">
+          <p class="col-6">Timesketch</p>
+          <div class="form-check form-switch col-6">
+            {% if is_timesketch_active %}
+              <span class="badge text-bg-success">activated</span>
+            {% else %}
+              <span class="badge text-bg-danger">deactivated</span>
+            {% endif %}
+          </div>
+        </div>
+        <div id="admin_module_logstash_infos" class="row">
+          <p class="col-6">Logstash </p>
+          <div class="form-check form-switch col-6">
+            {% if is_logstash_active %}
+              <span class="badge text-bg-success">activated</span>
+            {% else %}
+              <span class="badge text-bg-danger">deactivated</span>
+            {% endif %}
+          </div>
+        </div>
+        <div id="admin_module_winlogbeat_infos" class="row">
+          <p class="col-6">Winlogbeat </p>
+          <div class="form-check form-switch col-6">
+            {% if is_winlogbeat_active %}
+              <span class="badge text-bg-success">activated</span>
+            {% else %}
+              <span class="badge text-bg-danger">deactivated</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
     id="logstash_configuration_infos"
     class="my-3 p-3 bg-white rounded box-shadow card"
   >
     <div class="card-body">
-      <h5 class="card-title">Gestion Pipelines Logstash</h5>
+      <h5 class="card-title">Pipelines Logstash</h5>
       <div id="admin_logstash_infos" class="row">
         
       </div>
@@ -132,7 +182,7 @@
       class="my-3 p-3 bg-white rounded box-shadow card"
     >
       <div class="card-body">
-        <h5 class="card-title">Gestion Timesketch</h5>
+        <h5 class="card-title">Timesketch</h5>
         <div id="admin_ts_infos" class="row">
           <p class="col-6">
             Status
@@ -213,7 +263,7 @@
       class="my-3 p-3 bg-white rounded box-shadow card"
     >
       <div class="card-body">
-        <h5 class="card-title">Gestion Elastic</h5>
+        <h5 class="card-title">Elastic</h5>
         <div id="admin_elastic_infos" class="row">
           <p class="col-6">
             Status
@@ -467,7 +517,7 @@
     }
     $("#table_collectes_infos").DataTable().destroy();
     $("#tbody_collectes_infos").html(text);
-    $("#table_collectes_infos").DataTable().draw();
+    $("#table_collectes_infos").DataTable({order:[1, 'asc']}).draw();
   }
 
   function getTSStatus() {

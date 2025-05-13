@@ -42,7 +42,9 @@ def is_timesketch_connected() -> bool:
     """
     # config file on triage /home/triage/.timesketchrc
     try:
-        host_uri = INTERNAL_CONFIG["general"]["timesketch_url"]
+        if not INTERNAL_CONFIG["administration"]["Timesketch"]["active"]:
+            return False
+        host_uri = INTERNAL_CONFIG["administration"]["Timesketch"]["url"]
         username = INTERNAL_CONFIG["administration"]["Timesketch"]["username"]
         password = INTERNAL_CONFIG["administration"]["Timesketch"]["password"]
         ts = client.TimesketchApi(
@@ -79,8 +81,10 @@ def is_elastic_connected() -> bool:
         Bool
     """
     try:
-        host_uri = INTERNAL_CONFIG["general"]["elastic_url"]
-        port = INTERNAL_CONFIG["general"]["elastic_port"]
+        if not INTERNAL_CONFIG["administration"]["Elastic"]["active"]:
+            return False
+        host_uri = INTERNAL_CONFIG["administration"]["Elastic"]["url"]
+        port = INTERNAL_CONFIG["administration"]["Elastic"]["port"]
         username = INTERNAL_CONFIG["administration"]["Elastic"]["username"]
         password = INTERNAL_CONFIG["administration"]["Elastic"]["password"]
 
@@ -111,7 +115,9 @@ def delete_sketch_by_id(id: int = 0) -> bool:
     # config file on triage /home/triage/.timesketchrc
     try:
         _res = True
-        host_uri = INTERNAL_CONFIG["general"]["timesketch_url"]
+        if not INTERNAL_CONFIG["administration"]["Timesketch"]["active"]:
+            raise Exception("Module Timesketch not active")
+        host_uri = INTERNAL_CONFIG["administration"]["Timesketch"]["url"]
         username = INTERNAL_CONFIG["administration"]["Timesketch"]["username"]
         password = INTERNAL_CONFIG["administration"]["Timesketch"]["password"]
         ts = client.TimesketchApi(
@@ -158,8 +164,10 @@ def delete_indice_by_name(indice_name: str) -> bool:
         Bool
     """
     try:
-        host_uri = INTERNAL_CONFIG["general"]["elastic_url"]
-        port = INTERNAL_CONFIG["general"]["elastic_port"]
+        if not INTERNAL_CONFIG["administration"]["Elastic"]["active"]:
+            raise Exception("Module Eslactic not active")
+        host_uri = INTERNAL_CONFIG["administration"]["Elastic"]["url"]
+        port = INTERNAL_CONFIG["administration"]["Elastic"]["port"]
         username = INTERNAL_CONFIG["administration"]["Elastic"]["username"]
         password = INTERNAL_CONFIG["administration"]["Elastic"]["password"]
 
@@ -194,8 +202,10 @@ def delete_indice_by_name(indice_name: str) -> bool:
 @LOG
 def get_all_indices() -> list:
     try:
-        host_uri = INTERNAL_CONFIG["general"]["elastic_url"]
-        port = INTERNAL_CONFIG["general"]["elastic_port"]
+        if not INTERNAL_CONFIG["administration"]["Elastic"]["active"]:
+            raise Exception("Module Eslactic not active")
+        host_uri = INTERNAL_CONFIG["administration"]["Elastic"]["url"]
+        port = INTERNAL_CONFIG["administration"]["Elastic"]["port"]
         username = INTERNAL_CONFIG["administration"]["Elastic"]["username"]
         password = INTERNAL_CONFIG["administration"]["Elastic"]["password"]
 
@@ -244,7 +254,9 @@ def get_all_sketchs() -> list:
     """
     # config file on triage /home/triage/.timesketchrc
     try:
-        host_uri = INTERNAL_CONFIG["general"]["timesketch_url"]
+        if not INTERNAL_CONFIG["administration"]["Timesketch"]["active"]:
+            return list()
+        host_uri = INTERNAL_CONFIG["administration"]["Timesketch"]["url"]
         username = INTERNAL_CONFIG["administration"]["Timesketch"]["username"]
         password = INTERNAL_CONFIG["administration"]["Timesketch"]["password"]
         ts = client.TimesketchApi(
@@ -261,11 +273,11 @@ def get_all_sketchs() -> list:
             return _my_sketchs
         else:
             LOGGER.error("[get_all_sketchs] TS is NONE")
-            return []
+            return list()
     except Exception as ex:
         # error "format code..." is in importer.py
         LOGGER.error(f"[get_all_sketchs] {str(ex)}")
-        return []
+        return list()
 
 
 @LOG

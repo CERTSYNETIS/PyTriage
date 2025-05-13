@@ -39,7 +39,7 @@ class Plugin(BasePlugin):
 
         self.zip_destination = os.path.join(self.kape_dir, "extract")
         triageutils.create_directory_path(path=self.zip_destination, logger=self.logger)
-        
+
         self.mount_point = os.path.join(self.kape_dir, "mnt")
         triageutils.create_directory_path(path=self.mount_point, logger=self.logger)
         self.config["general"]["extracted_zip"] = f"{self.mount_point}"
@@ -287,78 +287,82 @@ class Plugin(BasePlugin):
         Returns:
 
         """
-        mft = triageutils.search_files(
-            src=self.zip_destination, pattern="_MFT.body", logger=self.logger
-        )
-        mft = mft[0] if len(mft) == 1 else None
-        usn = triageutils.search_files(
-            src=self.zip_destination, pattern="_UsnJrnl.body", logger=self.logger
-        )
-        usn = usn[0] if len(usn) == 1 else None
-        _docker = docker.from_env()
-        self.info(f"Docker volume to mount: {self.data_volume}")
-        if mft and usn:
-            self.info("Start Docker log2timeline/plaso on $MFT,$UsnJrnl files")
-            # cmd = f"log2timeline.py --worker_memory_limit 4000000000 --parsers mactime --storage_file /data/{self.hostname}-DISK.plaso /data/modules/FileSystem/"
-            cmd = [
-                "log2timeline.py",
-                "--status_view",
-                "linear",
-                "--parsers",
-                "mactime",
-                "--storage_file",
-                f"{self.zip_destination}/{self.hostname}-DISK.plaso",
-                f"{self.zip_destination}/modules/FileSystem/",
-            ]
-            container = _docker.containers.run(
-                image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
-                auto_remove=True,
-                detach=True,
-                command=cmd,
-                volumes=[f"{self.data_volume}:/data"],
-                stderr=True,
-                stdout=True,
-                name=f"{self.clientname}-{self.hostname}-DISK",
+        try:
+            mft = triageutils.search_files(
+                src=self.zip_destination, pattern="_MFT.body", logger=self.logger
             )
-            container.wait()
-            self.info("STOP Docker log2timeline/plaso on $MFT,$UsnJrnl files")
-        else:
-            self.info("Start Docker log2timeline/plaso on VHDX file")
-            cmd = [
-                "log2timeline.py",
-                "--status_view",
-                "linear",
-                "--parsers",
-                "mft,usnjrnl",
-                "--storage_file",
-                f"{self.zip_destination}/{self.hostname}-DISK.plaso",
-                self.vhdx_file,
-            ]
-            container = _docker.containers.run(
-                image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
-                auto_remove=True,
-                detach=True,
-                command=cmd,
-                volumes=[f"{self.data_volume}:/data"],
-                stderr=True,
-                stdout=True,
-                name=f"{self.clientname}-{self.hostname}-DISK",
+            mft = mft[0] if len(mft) == 1 else None
+            usn = triageutils.search_files(
+                src=self.zip_destination, pattern="_UsnJrnl.body", logger=self.logger
             )
-            container.wait()
-            self.info("STOP Docker log2timeline/plaso on VHDX file")
+            usn = usn[0] if len(usn) == 1 else None
+            _docker = docker.from_env()
+            self.info(f"Docker volume to mount: {self.data_volume}")
+            if mft and usn:
+                self.info("Start Docker log2timeline/plaso on $MFT,$UsnJrnl files")
+                # cmd = f"log2timeline.py --worker_memory_limit 4000000000 --parsers mactime --storage_file /data/{self.hostname}-DISK.plaso /data/modules/FileSystem/"
+                cmd = [
+                    "log2timeline.py",
+                    "--status_view",
+                    "linear",
+                    "--parsers",
+                    "mactime",
+                    "--storage_file",
+                    f"{self.zip_destination}/{self.hostname}-DISK.plaso",
+                    f"{self.zip_destination}/modules/FileSystem/",
+                ]
+                container = _docker.containers.run(
+                    image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
+                    auto_remove=True,
+                    detach=True,
+                    command=cmd,
+                    volumes=[f"{self.data_volume}:/data"],
+                    stderr=True,
+                    stdout=True,
+                    name=f"{self.clientname}-{self.hostname}-DISK",
+                )
+                container.wait()
+                self.info("STOP Docker log2timeline/plaso on $MFT,$UsnJrnl files")
+            else:
+                self.info("Start Docker log2timeline/plaso on VHDX file")
+                cmd = [
+                    "log2timeline.py",
+                    "--status_view",
+                    "linear",
+                    "--parsers",
+                    "mft,usnjrnl",
+                    "--storage_file",
+                    f"{self.zip_destination}/{self.hostname}-DISK.plaso",
+                    self.vhdx_file,
+                ]
+                container = _docker.containers.run(
+                    image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
+                    auto_remove=True,
+                    detach=True,
+                    command=cmd,
+                    volumes=[f"{self.data_volume}:/data"],
+                    stderr=True,
+                    stdout=True,
+                    name=f"{self.clientname}-{self.hostname}-DISK",
+                )
+                container.wait()
+                self.info("STOP Docker log2timeline/plaso on VHDX file")
 
-        s_file = os.path.join(self.plaso_folder, f"{self.hostname}-DISK.plaso")
-        triageutils.move_file(
-            src=os.path.join(self.zip_destination, f"{self.hostname}-DISK.plaso"),
-            dst=s_file,
-            logger=self.logger,
-        )
-        triageutils.import_timesketch(
-            timelinename=f"{self.hostname}_DISK",
-            file=s_file,
-            timesketch_id=self.timesketch_id,
-            logger=self.logger,
-        )
+            s_file = os.path.join(self.plaso_folder, f"{self.hostname}-DISK.plaso")
+            triageutils.move_file(
+                src=os.path.join(self.zip_destination, f"{self.hostname}-DISK.plaso"),
+                dst=s_file,
+                logger=self.logger,
+            )
+            if self.is_timesketch_active:
+                triageutils.import_timesketch(
+                    timelinename=f"{self.hostname}_DISK",
+                    file=s_file,
+                    timesketch_id=self.timesketch_id,
+                    logger=self.logger,
+                )
+        except Exception as ex:
+            self.logger.error(f"[generate_mft_timeline] {ex}")
 
     @triageutils.LOG
     def generate_winarts_timeline(self, logger=None):
@@ -369,42 +373,46 @@ class Plugin(BasePlugin):
 
         """
         # client = docker.from_env()
-        self.info("Start Docker log2timeline/plaso on winarts")
-
-        cmd = [
-            "log2timeline.py",
-            "--status_view",
-            "linear",
-            "--storage-file",
-            f"{self.zip_destination}/{self.hostname}-WINARTS.plaso",
-            self.vhdx_file,
-        ]
-        _docker = docker.from_env()
-        container = _docker.containers.run(
-            image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
-            auto_remove=True,
-            detach=True,
-            command=cmd,
-            volumes=[f"{self.data_volume}:/data"],
-            stderr=True,
-            stdout=True,
-            name=f"{self.clientname}-{self.hostname}-WINARTS",
-        )
-        container.wait()
-        self.info("STOP Docker log2timeline/plaso on winarts")
-        s_file = os.path.join(self.plaso_folder, f"{self.hostname}-WINARTS.plaso")
-        triageutils.move_file(
-            src=os.path.join(self.zip_destination, f"{self.hostname}-WINARTS.plaso"),
-            dst=s_file,
-            logger=self.logger,
-        )
-
-        triageutils.import_timesketch(
-            timelinename=f"{self.hostname}_WINARTS",
-            file=s_file,
-            timesketch_id=self.timesketch_id,
-            logger=self.logger,
-        )
+        try:
+            self.info("Start Docker log2timeline/plaso on winarts")
+            cmd = [
+                "log2timeline.py",
+                "--status_view",
+                "linear",
+                "--storage-file",
+                f"{self.zip_destination}/{self.hostname}-WINARTS.plaso",
+                self.vhdx_file,
+            ]
+            _docker = docker.from_env()
+            container = _docker.containers.run(
+                image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
+                auto_remove=True,
+                detach=True,
+                command=cmd,
+                volumes=[f"{self.data_volume}:/data"],
+                stderr=True,
+                stdout=True,
+                name=f"{self.clientname}-{self.hostname}-WINARTS",
+            )
+            container.wait()
+            self.info("STOP Docker log2timeline/plaso on winarts")
+            s_file = os.path.join(self.plaso_folder, f"{self.hostname}-WINARTS.plaso")
+            triageutils.move_file(
+                src=os.path.join(
+                    self.zip_destination, f"{self.hostname}-WINARTS.plaso"
+                ),
+                dst=s_file,
+                logger=self.logger,
+            )
+            if self.is_timesketch_active:
+                triageutils.import_timesketch(
+                    timelinename=f"{self.hostname}_WINARTS",
+                    file=s_file,
+                    timesketch_id=self.timesketch_id,
+                    logger=self.logger,
+                )
+        except Exception as ex:
+            self.logger.error(f"[generate_winarts_timeline] {ex}")
 
     @triageutils.LOG
     def generate_psort_timeline(self, plasofile="", logger=None) -> str:
@@ -696,6 +704,7 @@ class Plugin(BasePlugin):
                     hostname=self.hostname,
                     mapping=self.evtx_mapping,
                     output_folder=self.evtx_parsed_share,
+                    logstash_is_active=self.is_logstash_active,
                     logger=self.logger,
                 )
                 _res = _p.parse_evtx()
@@ -857,9 +866,10 @@ class Plugin(BasePlugin):
                 try:
                     if self.config["run"]["kape"]["winlogbeat"]:
                         evtx_logs = self.get_evtx(logger=self.logger)
-                        self.send_logs_to_winlogbeat(
-                            evtx_logs=evtx_logs, logger=self.logger
-                        )
+                        if self.is_winlogbeat_active:
+                            self.send_logs_to_winlogbeat(
+                                evtx_logs=evtx_logs, logger=self.logger
+                            )
                     else:
                         self.kape_parse_evtx(logger=self.logger)
                         self.info("[kape] EVTX process done")
@@ -911,7 +921,8 @@ class Plugin(BasePlugin):
                 try:
                     self.info("[KAPE] Run IIS")
                     res = self.get_iis_logs(logger=self.logger)
-                    self.send_iis_logs(iis_logs=res, logger=self.logger)
+                    if self.is_logstash_active:
+                        self.send_iis_logs(iis_logs=res, logger=self.logger)
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
             if self.config["run"]["kape"]["timeline"]:

@@ -25,7 +25,7 @@ def generate_entry_points():
 
 setup(
     name="pytriage",
-    version="1.0.0",
+    version="2.0.0",
     description="A modern Python-3-based triage service",
     long_description="""SYNETIS Triage service
     """,

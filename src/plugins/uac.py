@@ -112,18 +112,6 @@ class Plugin(BasePlugin):
                 return
             self.info("Start DOCKER log2timeline")
 
-            # cmd = [
-            #     "log2timeline.py",
-            #     "-z",
-            #     "UTC",
-            #     "--parsers",
-            #     "mactime",
-            #     "--status_view",
-            #     "linear",
-            #     "--storage_file",
-            #     f"{self.tar_destination}/{self.hostname}.plaso",
-            #     f"{self.tar_destination}/bodyfile/bodyfile.txt",
-            # ]
             cmd = [
                 "log2timeline.py",
                 "-z",
@@ -151,15 +139,15 @@ class Plugin(BasePlugin):
             )
             self.info("END DOCKER log2timeline")
             s_file = os.path.join(self.plaso_dir, f"{self.hostname}.plaso")
-            triageutils.import_timesketch(
-                timelinename=f"{self.hostname}_UAC_DISK",
-                file=s_file,
-                timesketch_id=self.timesketch_id,
-                logger=self.logger,
-            )
+            if self.is_timesketch_active:
+                triageutils.import_timesketch(
+                    timelinename=f"{self.hostname}_UAC_DISK",
+                    file=s_file,
+                    timesketch_id=self.timesketch_id,
+                    logger=self.logger,
+                )
         except Exception as ex:
             self.error(f"[uac_generate_timeline] {str(ex)}")
-            raise ex
 
     @triageutils.LOG
     def uac_get_logs(self, logger=None):
@@ -317,7 +305,7 @@ class Plugin(BasePlugin):
                 archive=self.tar_file, dest=self.tar_destination, logger=self.logger
             )
 
-            if self.config["run"]["uac"]["filebeat"]:
+            if self.config["run"]["uac"]["filebeat"] and self.is_logstash_active:
                 self.uac_get_logs(logger=self.logger)
                 self.ymlcreator(logger=self.logger)
                 self.check_docker_image(

@@ -705,6 +705,8 @@ def import_timesketch(
 
     """
     # config file on triage /home/triage/.timesketchrc
+    if not INTERNAL_CONFIG["administration"]["Timesketch"]["active"]:
+        raise Exception("Timesketch module not active")
     if not timesketch_id:
         logger.error("[import_timesketch] sketch ID is NONE")
         raise Exception("[import_timesketch] sketch ID is NONE")
@@ -714,7 +716,7 @@ def import_timesketch(
     try:
         # ts = config.get_client(config_section="timesketch")
         _ts = client.TimesketchApi(
-            host_uri=INTERNAL_CONFIG["general"]["timesketch_url"],
+            host_uri=INTERNAL_CONFIG["administration"]["Timesketch"]["url"],
             username=INTERNAL_CONFIG["administration"]["Timesketch"]["username"],
             password=INTERNAL_CONFIG["administration"]["Timesketch"]["password"],
             verify=False,
@@ -754,8 +756,10 @@ def create_sketch(
         ID du sketch nouvellement créé
     """
     try:
+        if not INTERNAL_CONFIG["administration"]["Timesketch"]["active"]:
+            raise Exception("Timesketch module not active")
         _ts = client.TimesketchApi(
-            host_uri=INTERNAL_CONFIG["general"]["timesketch_url"],
+            host_uri=INTERNAL_CONFIG["administration"]["Timesketch"]["url"],
             username=INTERNAL_CONFIG["administration"]["Timesketch"]["username"],
             password=INTERNAL_CONFIG["administration"]["Timesketch"]["password"],
             verify=False,
@@ -788,8 +792,10 @@ def get_sketch_by_name(
         Sketch or None
     """
     try:
+        if not INTERNAL_CONFIG["administration"]["Timesketch"]["active"]:
+            raise Exception("Timesketch module not active")
         _ts = client.TimesketchApi(
-            host_uri=INTERNAL_CONFIG["general"]["timesketch_url"],
+            host_uri=INTERNAL_CONFIG["administration"]["Timesketch"]["url"],
             username=INTERNAL_CONFIG["administration"]["Timesketch"]["username"],
             password=INTERNAL_CONFIG["administration"]["Timesketch"]["password"],
             verify=False,
@@ -832,6 +838,8 @@ def send_data_to_elk(
         number of event sent (int)
     """
     try:
+        if not INTERNAL_CONFIG["administration"]["Logstash"]["active"]:
+            raise Exception("Module Logstash not active")
         if not data or not ip or port == 0:
             logger.error("[send_data_to_elk] one or more args are not set")
             return None
@@ -925,6 +933,8 @@ def send_jsonl_to_elk(
     Returns:
     """
     try:
+        if not INTERNAL_CONFIG["administration"]["Logstash"]["active"]:
+            raise Exception("Module Logstash not active")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         logger.info("[send_jsonl_to_elk] socket created")
         logger.info(f"[send_jsonl_to_elk] Try to connect to : {ip}:{port}")
@@ -949,9 +959,9 @@ def send_jsonl_to_elk(
             logger.info("[send_jsonl_to_elk] Data fully sent")
         sock.close()
     except Exception as e:
+        logger.error(f"[send_jsonl_to_elk] {str(e)}")
         if sock:
             sock.close()
-        logger.error(f"[send_jsonl_to_elk] {str(e)}")
         raise e
 
 
@@ -1174,56 +1184,6 @@ def update_dict(x, y, logger=LOGGER) -> dict:
             continue
     x.update(y)
     return x
-
-
-@LOG
-def from_gen_to_elk(
-    gen=None,
-    ip: str = "",
-    port: int = 0,
-    extrafields: dict = {},
-    LOGLEVEL: str = "INFO",
-    logger=LOGGER,
-):
-    """Fonction qui envoie de la data vers ELK
-
-     Args:
-        gen (obj): generator object, yielding dicts only
-        ip (str): Adresse IP de ELK
-        port (int): Port ELK qui reçoit les données
-        client (str): Nom du client
-        extrafields (dict): paramètres supplémentaires à ajouter au dict pour envoi
-
-    Returns:
-    """
-    try:
-        if not isinstance(gen, types.GeneratorType):
-            logger.error("[from_gen_to_elk] Wrong generator input type")
-            raise Exception("[from_gen_to_elk] Wrong generator input type")
-        if not ip or port == 0:
-            logger.error("[from_gen_to_elk] one or more args are not set")
-            raise Exception("[from_gen_to_elk] one or more args are not set")
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        logger.info("[from_gen_to_elk] socket created")
-    except Exception as e:
-        sock.close()
-        logger.error(str(e))
-        raise e
-    try:
-        logger.info(f"[from_gen_to_elk] Try to connect to : {ip}:{port}")
-        sock.connect((ip, port))
-        logger.info(f"[from_gen_to_elk] socket connected to : {ip}:{port}")
-        for obj in gen:
-            obj.update(extrafields)
-            msg = f"{json.dumps(obj)}\n"
-            time.sleep(1 / 5000)
-            sock.send(msg.encode())
-            logger.info("[from_gen_to_elk] Data fully sent")
-        sock.close()
-    except Exception as e:
-        sock.close()
-        logger.error(f"[from_gen_to_elk] {str(e)}")
-        raise e
 
 
 @LOG

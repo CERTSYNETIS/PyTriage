@@ -16,10 +16,20 @@ class BasePlugin(object):
 
         internal_config = triageutils.INTERNAL_CONFIG
 
-        self.timesketch_url = internal_config["general"]["timesketch_url"]
-        self.elastic_url = internal_config["general"]["elastic_url"]
-        self.logstash_url = internal_config["general"]["logstash_url"]
-        self.kibana_url = internal_config["general"]["kibana_url"]
+        self.timesketch_url = internal_config["administration"]["Timesketch"]["url"]
+        self.is_timesketch_active = internal_config["administration"]["Timesketch"][
+            "active"
+        ]
+
+        self.elastic_url = internal_config["administration"]["Elastic"]["url"]
+        self.is_elastic_active = internal_config["administration"]["Elastic"]["active"]
+
+        self.logstash_url = internal_config["administration"]["Logstash"]["url"]
+        self.is_logstash_active = internal_config["administration"]["Logstash"][
+            "active"
+        ]
+
+        self.kibana_url = internal_config["administration"]["Kibana"]["url"]
 
         self.hayabusa_port = internal_config["pipelines"]["hayabusa"]
         self.adtimeline_port = internal_config["pipelines"]["adtimeline"]
@@ -27,6 +37,7 @@ class BasePlugin(object):
         self.evtxparser_port = internal_config["pipelines"]["evtxparser"]
         self.volatility_port = internal_config["pipelines"]["volatility"]
         self.o365_port = internal_config["pipelines"]["o365"]
+        self.mail_port = internal_config["pipelines"]["mail"]
         self.raw_json_port = internal_config["pipelines"]["fortinet"]
         self.adaudit_port = internal_config["pipelines"]["adaudit"]
         self.filebeat_port = internal_config["pipelines"]["filebeat"]
@@ -34,7 +45,11 @@ class BasePlugin(object):
 
         self.orc_port = internal_config["pipelines"]["orc"]
         self.hayabusa_bin_path = internal_config["general"]["hayabusa_bin_path"]
-        self.winlogbeat = internal_config["general"]["winlogbeat"]
+
+        self.winlogbeat = internal_config["administration"]["Winlogbeat"]["folder"]
+        self.is_winlogbeat_active = internal_config["administration"]["Winlogbeat"][
+            "active"
+        ]
 
         self.data_volume = internal_config["volumes"]["data"]
 

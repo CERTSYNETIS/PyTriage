@@ -413,8 +413,7 @@ function getlogs(id) {
       $("#input_hostname").prop("disabled", true);
       $("#input_timesketch_id").val(config.general.timesketch_id);
       $("#input_timesketch_id").prop("disabled", true);
-      $("#div_timesketch_id").show();
-
+      
       if (config.run.kape.plugin == true) {
         $("#kape_sub_modules").show();
       } else {
@@ -429,8 +428,18 @@ function getlogs(id) {
       $("#run_hayabusa").prop("checked", config.run.hayabusa);
       $("#run_adtimeline").prop("checked", config.run.adtimeline);
       $("#run_o365").prop("checked", config.run.o365);
+      
       $("#run_orc").prop("checked", config.run.orc.plugin);
       $("#run_adaudit").prop("checked", config.run.adaudit.plugin);
+
+      $("#run_mail").prop("checked", config.run.mail.plugin);
+      if (config.run.mail.plugin == true) {
+        $("#mail_sub_modules").show();
+        $("#run_mail_attachments").prop("checked", config.run.mail.attachments);
+      } else {
+        $("#mail_sub_modules").hide();
+      }
+
       if (config.run.uac.plugin == true) {
         $("#uac_sub_modules").show();
       } else {
@@ -541,7 +550,6 @@ function getlogs(id) {
     $("#input_hostname").prop("disabled", false);
     $("#input_timesketch_id").val("");
     $("#input_timesketch_id").prop("disabled", false);
-    $("#div_timesketch_id").hide();
     
     $("#kape_sub_modules").show();
     $("#run_kape").prop("checked", true);
@@ -553,6 +561,9 @@ function getlogs(id) {
     $("#run_hayabusa").prop("checked", true);
     $("#run_adtimeline").prop("checked", false);
     $("#run_o365").prop("checked", false);
+    
+    $("#run_mail").prop("checked", false);
+    $("#mail_sub_modules").hide();
 
     $("#run_orc").prop("checked", false);
 
@@ -624,6 +635,7 @@ function getlogs(id) {
 
   function check_config() {
     var ret = true;
+    var plugin_selected = $("#select_plugin").find(":selected").val();
     ret &= $("#input_client_name").val() ? true : false;
     if(!$("#input_client_name").val()){$("#input_client_name").addClass('is-invalid');}
     else{$("#input_client_name").removeClass('is-invalid');}
@@ -636,35 +648,20 @@ function getlogs(id) {
     if(!$("#archive").val()){$("#archive").addClass('is-invalid');}
     else{$("#archive").removeClass('is-invalid');}
     
-    if ($("#run_kape").is(":checked")) {
-      ret & true;
-    } else if ($("#run_hayabusa").is(":checked")) {
-      ret & true;
-    } else if ($("#run_uac").is(":checked")) {
-      ret & true;
-    } else if ($("#run_adtimeline").is(":checked")) {
-      ret & true;
-    } else if ($("#run_o365").is(":checked")) {
-      ret & true;
-    } else if ($("#run_volatility").is(":checked")) {
-      ret & true;
-    } else if ($("#run_standalone").is(":checked")) {
-      ret & true;
-    } else if ($("#run_orc").is(":checked")) {
-      ret & true;
-    } else if ($("#run_adaudit").is(":checked")) {
-      ret & true;
-    } else if ($("#run_generaptor").is(":checked")) {
-      ret & true;
+   switch(plugin_selected){
+    case "generaptor":
       ret &= $("#run_generaptor_private_key_file").val() ? true : false;
       if(!$("#run_generaptor_private_key_file").val()){$("#run_generaptor_private_key_file").addClass('is-invalid');}
       else{$("#run_generaptor_private_key_file").removeClass('is-invalid');}
       ret &= $("#run_generaptor_private_key_secret").val() ? true : false;
       if(!$("#run_generaptor_private_key_secret").val()){$("#run_generaptor_private_key_secret").addClass('is-invalid');}
       else{$("#run_generaptor_private_key_secret").removeClass('is-invalid');}
-    } else {
-      ret = false;
-    }
+      break;
+    case "orc":
+      ret &= $("#run_orc_certfile").val() ? true : false;
+      if(!$("#run_orc_certfile").val()){$("#run_orc_certfile").addClass('is-invalid');}
+      break;
+   }
     return ret;
   }
 

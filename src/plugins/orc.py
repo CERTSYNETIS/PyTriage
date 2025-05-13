@@ -225,6 +225,7 @@ class Plugin(BasePlugin):
                     hostname=self.hostname,
                     mapping=self.evtx_mapping,
                     output_folder=evtx_parsed_share,
+                    logstash_is_active=self.is_logstash_active,
                     logger=self.logger,
                 )
                 _res = _p.parse_evtx()
@@ -323,45 +324,49 @@ class Plugin(BasePlugin):
         Returns:
 
         """
-        _docker = docker.from_env()
-        if triageutils.file_exists(
-            file=f"{self.orc_dir}/{self.hostname}.plaso",
-        ):
-            triageutils.delete_file(
-                src=f"{self.orc_dir}/{self.hostname}.plaso",
+        try:
+            _docker = docker.from_env()
+            if triageutils.file_exists(
+                file=f"{self.orc_dir}/{self.hostname}.plaso",
+            ):
+                triageutils.delete_file(
+                    src=f"{self.orc_dir}/{self.hostname}.plaso",
+                )
+            self.info(f"Docker volume to mount: {self.data_volume}")
+            self.info("Start Docker log2timeline/plaso all parsers")
+            cmd = [
+                "log2timeline.py",
+                "--storage_file",
+                f"{self.orc_dir}/{self.hostname}.plaso",
+                f"{self.orc_dir}",
+            ]
+            container = _docker.containers.run(
+                image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
+                auto_remove=True,
+                detach=True,
+                command=cmd,
+                volumes=[f"{self.data_volume}:/data"],
+                stderr=True,
+                stdout=True,
+                name=f"{self.clientname}-{self.hostname}-DISK",
             )
-        self.info(f"Docker volume to mount: {self.data_volume}")
-        self.info("Start Docker log2timeline/plaso all parsers")
-        cmd = [
-            "log2timeline.py",
-            "--storage_file",
-            f"{self.orc_dir}/{self.hostname}.plaso",
-            f"{self.orc_dir}",
-        ]
-        container = _docker.containers.run(
-            image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
-            auto_remove=True,
-            detach=True,
-            command=cmd,
-            volumes=[f"{self.data_volume}:/data"],
-            stderr=True,
-            stdout=True,
-            name=f"{self.clientname}-{self.hostname}-DISK",
-        )
-        container.wait()
-        self.info("STOP Docker log2timeline/plaso")
-        s_file = os.path.join(self.plaso_folder, f"{self.hostname}.plaso")
-        triageutils.move_file(
-            src=os.path.join(self.orc_dir, f"{self.hostname}.plaso"),
-            dst=s_file,
-            logger=self.logger,
-        )
-        triageutils.import_timesketch(
-            timelinename=f"{self.hostname}_DISK",
-            file=s_file,
-            timesketch_id=self.timesketch_id,
-            logger=self.logger,
-        )
+            container.wait()
+            self.info("STOP Docker log2timeline/plaso")
+            s_file = os.path.join(self.plaso_folder, f"{self.hostname}.plaso")
+            triageutils.move_file(
+                src=os.path.join(self.orc_dir, f"{self.hostname}.plaso"),
+                dst=s_file,
+                logger=self.logger,
+            )
+            if self.is_timesketch_active:
+                triageutils.import_timesketch(
+                    timelinename=f"{self.hostname}_DISK",
+                    file=s_file,
+                    timesketch_id=self.timesketch_id,
+                    logger=self.logger,
+                )
+        except Exception as ex:
+            self.logger.error(f"[generate_plaso_timeline] {ex}")
 
     @triageutils.LOG
     def run(self, logger: Logger):
@@ -387,9 +392,10 @@ class Plugin(BasePlugin):
                         evtx_folder=_evtxfolder, logger=self.logger
                     )
                     if self.config["run"]["orc"]["winlogbeat"]:
-                        self.send_logs_to_winlogbeat(
-                            evtx_logs=_evtx_files, logger=self.logger
-                        )
+                        if self.is_winlogbeat_active:
+                            self.send_logs_to_winlogbeat(
+                                evtx_logs=_evtx_files, logger=self.logger
+                            )
                     else:
                         self.orc_parse_evtx(evtx_logs=_evtx_files, logger=self.logger)
                 except Exception as ex:

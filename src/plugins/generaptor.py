@@ -232,7 +232,7 @@ class Plugin(BasePlugin):
     @triageutils.LOG
     def check_docker_image(
         self,
-        image_name="log2timeline/plaso",
+        image_name="dockerhub.cert.lan/log2timeline/plaso",
         tag="20230717",
         logger=None,
     ):
@@ -273,45 +273,49 @@ class Plugin(BasePlugin):
         Returns:
 
         """
-        _docker = docker.from_env()
-        if triageutils.file_exists(
-            file=f"{self.zip_destination}/{self.hostname}.plaso",
-        ):
-            triageutils.delete_file(
-                src=f"{self.zip_destination}/{self.hostname}.plaso",
+        try:
+            _docker = docker.from_env()
+            if triageutils.file_exists(
+                file=f"{self.zip_destination}/{self.hostname}.plaso",
+            ):
+                triageutils.delete_file(
+                    src=f"{self.zip_destination}/{self.hostname}.plaso",
+                )
+            self.info(f"Docker volume to mount: {self.data_volume}")
+            self.info("Start Docker log2timeline/plaso all parsers")
+            cmd = [
+                "log2timeline.py",
+                "--storage_file",
+                f"{self.zip_destination}/{self.hostname}.plaso",
+                f"{self.zip_destination}/{self.hostname}/uploads",
+            ]
+            container = _docker.containers.run(
+                image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
+                auto_remove=True,
+                detach=True,
+                command=cmd,
+                volumes=[f"{self.data_volume}:/data"],
+                stderr=True,
+                stdout=True,
+                name=f"{self.clientname}-{self.hostname}-DISK",
             )
-        self.info(f"Docker volume to mount: {self.data_volume}")
-        self.info("Start Docker log2timeline/plaso all parsers")
-        cmd = [
-            "log2timeline.py",
-            "--storage_file",
-            f"{self.zip_destination}/{self.hostname}.plaso",
-            f"{self.zip_destination}/{self.hostname}/uploads",
-        ]
-        container = _docker.containers.run(
-            image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
-            auto_remove=True,
-            detach=True,
-            command=cmd,
-            volumes=[f"{self.data_volume}:/data"],
-            stderr=True,
-            stdout=True,
-            name=f"{self.clientname}-{self.hostname}-DISK",
-        )
-        container.wait()
-        self.info("STOP Docker log2timeline/plaso")
-        s_file = os.path.join(self.plaso_folder, f"{self.hostname}.plaso")
-        triageutils.move_file(
-            src=os.path.join(self.zip_destination, f"{self.hostname}.plaso"),
-            dst=s_file,
-            logger=self.logger,
-        )
-        triageutils.import_timesketch(
-            timelinename=f"{self.hostname}_DISK",
-            file=s_file,
-            timesketch_id=self.timesketch_id,
-            logger=self.logger,
-        )
+            container.wait()
+            self.info("STOP Docker log2timeline/plaso")
+            s_file = os.path.join(self.plaso_folder, f"{self.hostname}.plaso")
+            triageutils.move_file(
+                src=os.path.join(self.zip_destination, f"{self.hostname}.plaso"),
+                dst=s_file,
+                logger=self.logger,
+            )
+            if self.is_timesketch_active:
+                triageutils.import_timesketch(
+                    timelinename=f"{self.hostname}_DISK",
+                    file=s_file,
+                    timesketch_id=self.timesketch_id,
+                    logger=self.logger,
+                )
+        except Exception as ex:
+            self.logger.error(f"[generate_plaso_timeline] {ex}")
 
     @triageutils.LOG
     def generate_psort_timeline(self, plasofile: str, logger: Logger) -> str:
@@ -323,42 +327,45 @@ class Plugin(BasePlugin):
             (str) file path généré
 
         """
-        # client = docker.from_env()
-        if not plasofile:
-            raise Exception("No PLASO file given")
-        self.info(f"Start Docker PLASO/psort on {plasofile}")
-        _slice = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-        _slice_size = 1051200
+        try:
+            if not plasofile:
+                raise Exception("No PLASO file given")
+            self.info(f"Start Docker PLASO/psort on {plasofile}")
+            _slice = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+            _slice_size = 1051200
 
-        cmd = [
-            "psort.py",
-            "-o",
-            "json_line",
-            "--slice",
-            f"{_slice}",
-            "--slice_size",
-            f"{_slice_size}",
-            "-a",
-            "-w",
-            f"{self.plaso_folder}/psort-{self.hostname}.jsonl",
-            f"{self.plaso_folder}/{plasofile}",
-        ]
+            cmd = [
+                "psort.py",
+                "-o",
+                "json_line",
+                "--slice",
+                f"{_slice}",
+                "--slice_size",
+                f"{_slice_size}",
+                "-a",
+                "-w",
+                f"{self.plaso_folder}/psort-{self.hostname}.jsonl",
+                f"{self.plaso_folder}/{plasofile}",
+            ]
 
-        _docker = docker.from_env()
-        container = _docker.containers.run(
-            image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
-            auto_remove=True,
-            detach=True,
-            command=cmd,
-            volumes=[f"{self.data_volume}:/data"],
-            stderr=True,
-            stdout=True,
-            name=f"{self.clientname}-{self.hostname}-psort",
-        )
-        container.wait()
-        self.info(f"STOP Docker PLASO/psort on {plasofile}")
-        s_file = os.path.join(self.plaso_folder, f"psort-{self.hostname}.jsonl")
-        return s_file
+            _docker = docker.from_env()
+            container = _docker.containers.run(
+                image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
+                auto_remove=True,
+                detach=True,
+                command=cmd,
+                volumes=[f"{self.data_volume}:/data"],
+                stderr=True,
+                stdout=True,
+                name=f"{self.clientname}-{self.hostname}-psort",
+            )
+            container.wait()
+            self.info(f"STOP Docker PLASO/psort on {plasofile}")
+            s_file = os.path.join(self.plaso_folder, f"psort-{self.hostname}.jsonl")
+            return s_file
+        except Exception as ex:
+            self.logger.error(f"[generate_psort_timeline] {ex}")
+            return ""
 
     @triageutils.LOG
     def send_psort_to_elk(self, psortfile: str, logger: Logger) -> None:
@@ -640,13 +647,12 @@ class Plugin(BasePlugin):
                 detach=True,
                 command=cmd,
                 volumes=voldisk,
+                network_mode="host",
                 stderr=True,
                 stdout=True,
                 name=f"{self.clientname}-{self.hostname}-FILEBEAT-GENERAPTOR",
             )
             container.wait()
-            logs = container.logs(stdout=False, stderr=True)
-            self.info(logs)
             self.info("END DOCKER FileBeat")
         except Exception as ex:
             self.error(f"[generaptor_filebeat] {str(ex)}")
@@ -675,23 +681,25 @@ class Plugin(BasePlugin):
                     hostname=self.hostname,
                     mapping=self.evtx_mapping,
                     output_folder=self.evtx_parsed_share,
+                    logstash_is_active=self.is_logstash_active,
                     logger=self.logger,
                 )
                 _res = _p.parse_evtx()
                 self.info(f"[generaptor_parse_evtx] {_res}")
 
                 # send analytics info
-                _analytics = triageutils.get_file_informations(filepath=_f)
-                _analytics["numberOfLogRecords"] = _res.get("nb_events_read", 0)
-                _analytics["numberOfEventSent"] = _res.get("nb_events_sent", 0)
-                _analytics["hostname"] = self.hostname
-                _analytics["logfilename"] = _res.get("file", "")
-                triageutils.send_data_to_elk(
-                    data=_analytics,
-                    ip=_ip,
-                    port=self.selfassessment_port,
-                    logger=self.logger,
-                )
+                if self.is_logstash_active:
+                    _analytics = triageutils.get_file_informations(filepath=_f)
+                    _analytics["numberOfLogRecords"] = _res.get("nb_events_read", 0)
+                    _analytics["numberOfEventSent"] = _res.get("nb_events_sent", 0)
+                    _analytics["hostname"] = self.hostname
+                    _analytics["logfilename"] = _res.get("file", "")
+                    triageutils.send_data_to_elk(
+                        data=_analytics,
+                        ip=_ip,
+                        port=self.selfassessment_port,
+                        logger=self.logger,
+                    )
         except Exception as ex:
             self.error(f"[generaptor_parse_evtx] {str(ex)}")
             raise ex
@@ -855,8 +863,14 @@ class Plugin(BasePlugin):
             if self.config["run"]["generaptor"]["linux"]:
                 self.info("Linux Generaptor")
                 self.get_linux_logs(logger=self.logger)
-                self.ymlcreator(logger=self.logger)
-                self.generaptor_filebeat(logger=self.logger)
+                if self.is_logstash_active:
+                    self.ymlcreator(logger=self.logger)
+                    self.check_docker_image(
+                            image_name=self.docker_images["filebeat"]["image"],
+                            tag=self.docker_images["filebeat"]["tag"],
+                            logger=self.logger,
+                        )
+                    self.generaptor_filebeat(logger=self.logger)
                 if self.config["run"]["generaptor"]["timeline"]:
                     self.info("[generaptor] Run PLASO")
                     self.check_docker_image(
@@ -883,9 +897,10 @@ class Plugin(BasePlugin):
                         evtx_logs = self.get_evtx(
                             evtx_folder=self.zip_destination, logger=self.logger
                         )
-                        self.send_logs_to_winlogbeat(
-                            evtx_logs=evtx_logs, logger=self.logger
-                        )
+                        if self.is_winlogbeat_active:
+                            self.send_logs_to_winlogbeat(
+                                evtx_logs=evtx_logs, logger=self.logger
+                            )
                     else:
                         self.generaptor_parse_evtx(logger=self.logger)
                 if self.config["run"]["generaptor"]["registry"]:
@@ -936,7 +951,8 @@ class Plugin(BasePlugin):
                         res = self.get_iis_logs(logger=self.logger)
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                    self.send_iis_logs(iis_logs=res, logger=self.logger)
+                    if self.is_logstash_active:
+                        self.send_iis_logs(iis_logs=res, logger=self.logger)
                 if self.config["run"]["generaptor"]["timeline"]:
                     self.info("[generaptor] Run PLASO")
                     self.check_docker_image(

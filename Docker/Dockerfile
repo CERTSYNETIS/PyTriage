@@ -17,6 +17,7 @@ RUN apt update -y && \
     apt install -y libguestfs-tools && \
     apt install -y zip && \
     apt install -y openssl && \
+    #apt install -y pff-tools && \
     apt clean -y && \
     rm -rf /var/cache/apt/* /var/lib/apt/lists/*
 
@@ -26,5 +27,6 @@ ENV HOME=/root
 COPY . .
 RUN pip3 install --upgrade pip --break-system-packages
 RUN pip install -r requirements.txt --break-system-packages
+RUN pip install src/bin/libpff_python-20240826-cp311-cp311-linux_x86_64.whl --break-system-packages
 EXPOSE 8080
 CMD ["python3", "triage.py"]

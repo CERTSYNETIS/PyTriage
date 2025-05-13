@@ -5,7 +5,7 @@ services:
       context: ..
       dockerfile: Docker/Dockerfile
     image: pytriage:x.x.x
-    container_name: pytriage-preprod
+    container_name: pytriage
     volumes:
       - /data/hayabusa:/hayabusa
       - /data:/data
@@ -39,5 +39,5 @@ services:
       - /winlogbeat:/winlogbeat
       - /var/run/docker.sock:/var/run/docker.sock
   redis:
-    image: redis:7.2.5
+    image: dockerhub.cert.lan/redis:7.2.5
 

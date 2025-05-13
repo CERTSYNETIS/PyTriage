@@ -88,3 +88,5 @@ redis==4.3.4
 docker==7.1.0
 ujson==5.10.0
 pytsk3==20231007
+mailbox==0.4
+libpff-python==20231205

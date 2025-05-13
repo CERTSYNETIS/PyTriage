@@ -1,12 +1,6 @@
 general:
   upload: /data
-  winlogbeat: /winlogbeat
   logfolder: /log
-  timesketch_url: ""
-  elastic_url: ""
-  elastic_port: 9200
-  logstash_url: ""
-  kibana_url: ""
   hayabusa_bin_path: "/hayabusa/hayabusa"
 
 pipelines:
@@ -21,14 +15,28 @@ pipelines:
   orc: 5067
   filebeat: 5058
   selfassessment: 5050
+  mail: 5061
 
 administration:
   Timesketch:
+    active: false
+    url: "https://xxx"
     username: xxx
     password: xxx
   Elastic:
+    active: false
+    url: "https://xxx"
+    port: 9200
     username: xxx
     password: xxx
+  Logstash:
+    active: false
+    url: "https://xxx"
+  Kibana:
+    url: "https://xxx"
+  Winlogbeat:
+    active: false
+    folder: /winlogbeat
 
 volumes:
   data: /data

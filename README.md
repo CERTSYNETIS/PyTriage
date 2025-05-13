@@ -300,4 +300,5 @@ Le service web est disponible sur https://localhost
 
 # Contributors
 
-* [xx](https://github.com/xx)
+* [A-Lvu](https://github.com/A-Lvu)
+* [SelfDestructAccount](https://github.com/SelfDestructAccount)

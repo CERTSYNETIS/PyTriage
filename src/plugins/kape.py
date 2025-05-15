@@ -1,6 +1,7 @@
 import subprocess
 import os
 import json
+import time
 from typing import Optional
 from itertools import islice
 from datetime import datetime, timezone
@@ -840,6 +841,27 @@ class Plugin(BasePlugin):
             self.error(f"[kape_parse_recyclebin] {ex}")
 
     @triageutils.LOG
+    def kape_get_consolehost_history(self, logger: Logger):
+        try:
+            for _f in triageutils.search_files_generator(
+                src=self.zip_destination,
+                pattern="ConsoleHost_history.txt",
+                patterninpath="PSReadLine",
+                strict=True,
+            ):
+                self.info(f"[kape_get_consolehost_history] Parse: {_f}")
+                try:
+                    _username = _f.parts[_f.parts.index('Users')+1]
+                except Exception as errorname:
+                    self.error(f"{errorname}")
+                    _username = time.time()
+                _dst = self.psreadline_dir / Path(f"{_username}")
+                triageutils.copy_file(src=_f, dst=_dst, overwrite=True, logger=self.logger)
+        except Exception as ex:
+            self.error(f"[kape_get_consolehost_history] {str(ex)}")
+            raise ex
+
+    @triageutils.LOG
     def run(self, logger: Logger):
         """Fonction principale qui exécute tout le triage de kape
 
@@ -861,7 +883,7 @@ class Plugin(BasePlugin):
                 )
             except Exception as ex:
                 self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"]["evtx"]:
+            if self.config["run"]["kape"].get("evtx", False):
                 self.info("[KAPE] Run EVTX")
                 try:
                     if self.config["run"]["kape"]["winlogbeat"]:
@@ -875,49 +897,55 @@ class Plugin(BasePlugin):
                         self.info("[kape] EVTX process done")
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"]["registry"]:
+            if self.config["run"]["kape"].get("registry", False):
                 try:
                     self.info("[KAPE] Run Registry")
                     self.kape_parse_registry(logger=self.logger)
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"]["mft"]:
+            if self.config["run"]["kape"].get("mft", False):
                 try:
                     self.info("[KAPE] Run MFT")
                     self.kape_parse_mft(logger=self.logger)
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"]["usnjrnl"]:
+            if self.config["run"]["kape"].get("usnjrnl", False):
                 try:
                     self.info("[KAPE] Run UsnJrnl")
                     self.kape_parse_usnjrnl(logger=self.logger)
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"]["prefetch"]:
+            if self.config["run"]["kape"].get("prefetch", False):
                 try:
                     self.info("[kape] Run Prefetch")
                     self.kape_parse_prefetch(logger=self.logger)
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"]["mplog"]:
+            if self.config["run"]["kape"].get("mplog", False):
                 try:
                     self.info("[kape] Run MPLog")
                     self.kape_parse_mplog(logger=self.logger)
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"]["activitiescache"]:
+            if self.config["run"]["kape"].get("activitiescache", False):
                 try:
                     self.info("[kape] Run ActivitiesCache")
                     self.kape_parse_activitiescache(logger=self.logger)
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"]["recyclebin"]:
+            if self.config["run"]["kape"].get("recyclebin", False):
                 self.info("[kape] Run Recycle Bin")
                 try:
                     self.kape_parse_recyclebin(logger=self.logger)
                 except Exception as err_reg:
                     self.error(f"[kape ERROR] {str(err_reg)}")
-            if self.config["run"]["kape"]["iis"]:
+            if self.config["run"]["kape"].get("psreadline", False):
+                    self.info("[kape] Run PSReadline")
+                    try:
+                        self.kape_get_consolehost_history(logger=self.logger)
+                    except Exception as err_reg:
+                        self.error(f"[kape ERROR] {str(err_reg)}")
+            if self.config["run"]["kape"].get("iis", False):
                 try:
                     self.info("[KAPE] Run IIS")
                     res = self.get_iis_logs(logger=self.logger)
@@ -925,7 +953,7 @@ class Plugin(BasePlugin):
                         self.send_iis_logs(iis_logs=res, logger=self.logger)
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"]["timeline"]:
+            if self.config["run"]["kape"].get("timeline", False):
                 self.info("[KAPE] Run PLASO")
                 self.check_docker_image(
                     image_name=self.docker_images["plaso"]["image"],

@@ -188,6 +188,7 @@ def generate_config() -> dict:
     res["run"]["kape"]["mplog"] = False
     res["run"]["kape"]["activitiescache"] = False
     res["run"]["kape"]["recyclebin"] = False
+    res["run"]["kape"]["psreadline"] = False
 
     res["run"]["uac"] = dict()
     res["run"]["uac"]["plugin"] = False
@@ -220,6 +221,7 @@ def generate_config() -> dict:
     res["run"]["generaptor"]["linux"] = False
     res["run"]["generaptor"]["activitiescache"] = False
     res["run"]["generaptor"]["recyclebin"] = False
+    res["run"]["generaptor"]["psreadline"] = False
 
     res["run"]["mail"] = dict()
     res["run"]["mail"]["plugin"] = False
@@ -338,6 +340,9 @@ def set_input_files():
                 )
                 res["run"]["kape"]["recyclebin"] = (
                     True if "windows_recyclebin" in request.form else False
+                )
+                res["run"]["kape"]["psreadline"] = (
+                    True if "windows_psreadline" in request.form else False
                 )
                 res["run"]["kape"]["timeline"] = (
                     True if "windows_timeline" in request.form else False
@@ -483,6 +488,9 @@ def set_input_files():
                 )
                 res["run"]["generaptor"]["recyclebin"] = (
                     True if "windows_recyclebin" in request.form else False
+                )
+                res["run"]["generaptor"]["psreadline"] = (
+                    True if "windows_psreadline" in request.form else False
                 )
                 res["run"]["generaptor"]["linux"] = (
                     True if "generaptor_linux" in request.form else False

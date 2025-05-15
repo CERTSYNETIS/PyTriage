@@ -134,13 +134,19 @@ class Plugin(BasePlugin):
                 with open(self.output_json, "r") as jsonl_f:
                     _total_events = len(jsonl_f.readlines())
                 self.output_json = Path(self.output_json)
-                _analytics = triageutils.get_file_informations(
+                _file_infos = triageutils.get_file_informations(
                     filepath=self.output_json
                 )
-                _analytics["numberOfLogRecords"] = _total_events
-                _analytics["numberOfEventSent"] = event_sent
-                _analytics["hostname"] = self.hostname
-                _analytics["logfilename"] = self.output_json.name
+                _analytics = triageutils.generate_analytics(logger=self.logger)
+                _analytics["log"]["file"]["eventcount"] = _total_events
+                _analytics["log"]["file"]["eventsent"] = event_sent
+                _analytics["log"]["file"]["path"] = self.output_json.name
+                _analytics["log"]["file"]["size"] = _file_infos.get("fileSize", 0)
+                _analytics["log"]["file"]["lastaccessed"] = _file_infos.get("lastAccessTime", 0)
+                _analytics["log"]["file"]["creation"] = _file_infos.get("creationTime", 0)
+                _analytics["csirt"]["client"] = self.clientname
+                _analytics["csirt"]["hostname"] = self.hostname
+                _analytics["csirt"]["application"] = "hayabusa"
                 triageutils.send_data_to_elk(
                     data=_analytics,
                     ip=ip,

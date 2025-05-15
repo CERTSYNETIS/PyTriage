@@ -67,13 +67,17 @@ class Plugin(BasePlugin):
             # Send analytics
             if self.is_logstash_active:
                 self.standalone_input_file = Path(self.standalone_input_file)
-                _analytics = triageutils.get_file_informations(
-                    filepath=self.standalone_input_file
-                )
-                _analytics["numberOfLogRecords"] = len(json_data)
-                _analytics["numberOfEventSent"] = _event_sent
-                _analytics["hostname"] = self.hostname
-                _analytics["logfilename"] = self.standalone_input_file.name
+                _file_infos = triageutils.get_file_informations(filepath=self.standalone_input_file)
+                _analytics = triageutils.generate_analytics(logger=self.logger)
+                _analytics["log"]["file"]["eventcount"] = len(json_data)
+                _analytics["log"]["file"]["eventsent"] = _event_sent
+                _analytics["log"]["file"]["path"] = self.standalone_input_file.name
+                _analytics["log"]["file"]["size"] = _file_infos.get("fileSize", 0)
+                _analytics["log"]["file"]["lastaccessed"] = _file_infos.get("lastAccessTime", 0)
+                _analytics["log"]["file"]["creation"] = _file_infos.get("creationTime", 0)
+                _analytics["csirt"]["client"] = self.clientname
+                _analytics["csirt"]["hostname"] = self.hostname
+                _analytics["csirt"]["application"] = "standalone_hayabusa"
                 triageutils.send_data_to_elk(
                     data=_analytics,
                     ip=ip,
@@ -421,11 +425,17 @@ class Plugin(BasePlugin):
 
                     # send analytics info
                     if self.is_logstash_active:
-                        _analytics = triageutils.get_file_informations(filepath=_f)
-                        _analytics["numberOfLogRecords"] = _res.get("nb_events_read", 0)
-                        _analytics["numberOfEventSent"] = _res.get("nb_events_sent", 0)
-                        _analytics["hostname"] = self.hostname
-                        _analytics["logfilename"] = _res.get("file", "")
+                        _file_infos = triageutils.get_file_informations(filepath=_f)
+                        _analytics = triageutils.generate_analytics(logger=self.logger)
+                        _analytics["log"]["file"]["eventcount"] = _res.get("nb_events_read", 0)
+                        _analytics["log"]["file"]["eventsent"] = _res.get("nb_events_sent", 0)
+                        _analytics["log"]["file"]["path"] = _res.get("file", "")
+                        _analytics["log"]["file"]["size"] = _file_infos.get("fileSize", 0)
+                        _analytics["log"]["file"]["lastaccessed"] = _file_infos.get("lastAccessTime", 0)
+                        _analytics["log"]["file"]["creation"] = _file_infos.get("creationTime", 0)
+                        _analytics["csirt"]["client"] = self.clientname
+                        _analytics["csirt"]["hostname"] = self.hostname
+                        _analytics["csirt"]["application"] = "standalone_parse_evtx"
                         triageutils.send_data_to_elk(
                             data=_analytics,
                             ip=_ip,

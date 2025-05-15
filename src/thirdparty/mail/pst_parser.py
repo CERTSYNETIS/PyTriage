@@ -6,7 +6,7 @@ import hashlib
 from pathlib import Path
 from logging import Logger
 from datetime import datetime
-from ..triageutils import send_data_to_elk, delete_file
+from ..triageutils import send_data_to_elk, delete_file, generate_analytics
 
 
 class PSTParser:
@@ -35,22 +35,9 @@ class PSTParser:
         self.pstfile = pstfile
         self.output_dir = output_dir
         self.is_logstash_active = is_logstash_active
-        self._analytics = self._generate_analytics()
+        self._analytics = generate_analytics()
 
-    def _generate_analytics(self) -> dict:
-        try:
-            _analytics = dict()
-            _analytics["eventcount"] = 0
-            _analytics["attachments"] = 0
-            _analytics["attributes"] = 0
-            _analytics["path"] = ""
-            _analytics["name"] = ""
-            _analytics["size"] = 0
-            return _analytics
-        except Exception as ex:
-            self.logger.error(f"[_generate_analytics] {ex}")
-            return dict()
-
+    
     def save_attachment(self, data: None, path: str = "", name: str = "") -> None:
         try:
             with open(os.path.join(path, name), "wb+") as out:
@@ -156,7 +143,7 @@ class PSTParser:
                 "date",
                 "modification_time",
             ]
-            self._analytics["eventcount"] += 1
+            self._analytics["log"]["file"]["eventcount"] += 1
             data_dict = dict()
             data_dict["subitems"] = list()
             ## ==== step 1 : get message attributes
@@ -195,7 +182,7 @@ class PSTParser:
             _temp = self.process_attachments(msg)
             data_dict["attachments"] = _temp
             data_dict["numberofattachments"] = len(_temp)
-            self._analytics["attachments"] += len(_temp)
+            self._analytics["log"]["file"]["attachments"] += len(_temp)
             return data_dict
         except Exception as e:
             self.logger.error(f"[process_message] {e}")
@@ -286,7 +273,7 @@ class PSTParser:
                 ip=ip,
                 port=self.analytics_port,
                 logger=self.logger,
-                extrafields=self.meta_fields,
+                extrafields=self.extrafields,
             )
         except Exception as e:
             self.logger.error(f"[PST][send_analytics_to_elk] {str(e)}")
@@ -297,6 +284,9 @@ class PSTParser:
             pff_obj = pypff.file()
             pff_obj.open(str(self.pstfile))
             parsed_data = self.process_folders(pff_obj.root_folder)
+            self._analytics["log"]["file"]["path"] = str(self.pstfile)
+            self._analytics["log"]["file"]["size"] = self.pstfile.stat().st_size
+            self._analytics["log"]["file"]["eventcount"] = len(parsed_data)
             self.write_json(
                 content=parsed_data,
                 output_file=self.output_dir / Path(f"{self.pstfile.stem}.json"),
@@ -304,7 +294,11 @@ class PSTParser:
             if self.is_logstash_active:
                 for msg_data in parsed_data:
                     msg_data.update(self.extrafields)
-                    self.send_to_elk(json_data=msg_data)
+                    try:
+                        self.send_to_elk(json_data=msg_data)
+                        self._analytics["log"]["file"]["eventsent"] += 1
+                    except Exception as ex:
+                        pass
             pff_obj.close()
         except Exception as e:
             self.logger.error(f"[run] {str(e)}")

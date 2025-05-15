@@ -1,6 +1,7 @@
 import os
 import docker
 import yaml
+import time
 from src.thirdparty import triageutils as triageutils
 from src.thirdparty.AESCipher import AESCipher
 from src.thirdparty.ParseEVTX import ParseEVTX
@@ -96,6 +97,9 @@ class Plugin(BasePlugin):
 
         self.recyclebin_dir = Path(os.path.join(self.generaptor_dir, "RecycleBin"))
         triageutils.create_directory_path(path=self.recyclebin_dir, logger=self.logger)
+
+        self.psreadline_dir = Path(os.path.join(self.generaptor_dir, "PSReadLine"))
+        triageutils.create_directory_path(path=self.psreadline_dir, logger=self.logger)
 
         self.log_dirs = (
             dict()
@@ -689,11 +693,17 @@ class Plugin(BasePlugin):
 
                 # send analytics info
                 if self.is_logstash_active:
-                    _analytics = triageutils.get_file_informations(filepath=_f)
-                    _analytics["numberOfLogRecords"] = _res.get("nb_events_read", 0)
-                    _analytics["numberOfEventSent"] = _res.get("nb_events_sent", 0)
-                    _analytics["hostname"] = self.hostname
-                    _analytics["logfilename"] = _res.get("file", "")
+                    _file_infos = triageutils.get_file_informations(filepath=_f)
+                    _analytics = triageutils.generate_analytics(logger=self.logger)
+                    _analytics["log"]["file"]["eventcount"] = _res.get("nb_events_read", 0)
+                    _analytics["log"]["file"]["eventsent"] = _res.get("nb_events_sent", 0)
+                    _analytics["log"]["file"]["path"] = str(_f)
+                    _analytics["log"]["file"]["size"] = _file_infos.get("fileSize", 0)
+                    _analytics["log"]["file"]["lastaccessed"] = _file_infos.get("lastAccessTime", 0)
+                    _analytics["log"]["file"]["creation"] = _file_infos.get("creationTime", 0)
+                    _analytics["csirt"]["client"] = self.clientname
+                    _analytics["csirt"]["hostname"] = self.hostname
+                    _analytics["csirt"]["application"] = "generaptor_parse_evtx"
                     triageutils.send_data_to_elk(
                         data=_analytics,
                         ip=_ip,
@@ -844,6 +854,28 @@ class Plugin(BasePlugin):
             self.error(f"[generaptor_parse_recyclebin] {ex}")
 
     @triageutils.LOG
+    def generaptor_get_consolehost_history(self, logger: Logger):
+        try:
+            for _f in triageutils.search_files_generator(
+                src=self.zip_destination,
+                pattern="ConsoleHost_history.txt",
+                patterninpath="PSReadLine",
+                strict=True,
+            ):
+                self.info(f"[generaptor_get_consolehost_history] Parse: {_f}")
+                try:
+                    _username = _f.parts[_f.parts.index('Users')+1]
+                except Exception as errorname:
+                    self.error(f"{errorname}")
+                    _username = time.time()
+                _dst = self.psreadline_dir / Path(f"{_username}")
+                triageutils.copy_file(src=_f, dst=_dst, overwrite=True, logger=self.logger)
+        except Exception as ex:
+            self.error(f"[generaptor_get_consolehost_history] {str(ex)}")
+            raise ex
+
+
+    @triageutils.LOG
     def run(self, logger: Logger):
         """Fonction principale qui exécute tout le triage de generaptor
 
@@ -891,7 +923,7 @@ class Plugin(BasePlugin):
                 except Exception as copy_err:
                     self.error(f"[RUN] {copy_err}")
                     pass
-                if self.config["run"]["generaptor"]["evtx"]:
+                if self.config["run"]["generaptor"].get("evtx", False):
                     self.info("[generaptor] Run EVTX")
                     if self.config["run"]["generaptor"]["winlogbeat"]:
                         evtx_logs = self.get_evtx(
@@ -903,49 +935,55 @@ class Plugin(BasePlugin):
                             )
                     else:
                         self.generaptor_parse_evtx(logger=self.logger)
-                if self.config["run"]["generaptor"]["registry"]:
+                if self.config["run"]["generaptor"].get("registry", False):
                     self.info("[generaptor] Run Registry")
                     try:
                         self.generaptor_parse_registry(logger=self.logger)
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"]["mft"]:
+                if self.config["run"]["generaptor"].get("mft", False):
                     self.info("[generaptor] Run MFT")
                     try:
                         self.generaptor_parse_mft(logger=self.logger)
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"]["usnjrnl"]:
+                if self.config["run"]["generaptor"].get("usnjrnl", False):
                     self.info("[generaptor] Run UsnJrnl")
                     try:
                         self.generaptor_parse_usnjrnl(logger=self.logger)
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"]["prefetch"]:
+                if self.config["run"]["generaptor"].get("prefetch", False):
                     self.info("[generaptor] Run Prefetch")
                     try:
                         self.generaptor_parse_prefetch(logger=self.logger)
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"]["mplog"]:
+                if self.config["run"]["generaptor"].get("mplog", False):
                     self.info("[generaptor] Run MPLog")
                     try:
                         self.generaptor_parse_mplog(logger=self.logger)
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"]["activitiescache"]:
+                if self.config["run"]["generaptor"].get("activitiescache", False):
                     self.info("[generaptor] Run ActivitiesCache")
                     try:
                         self.generaptor_parse_activitiescache(logger=self.logger)
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"]["recyclebin"]:
+                if self.config["run"]["generaptor"].get("recyclebin", False):
                     self.info("[generaptor] Run Recycle Bin")
                     try:
                         self.generaptor_parse_recyclebin(logger=self.logger)
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"]["iis"]:
+                if self.config["run"]["generaptor"].get("psreadline", False):
+                    self.info("[generaptor] Run PSReadline")
+                    try:
+                        self.generaptor_get_consolehost_history(logger=self.logger)
+                    except Exception as err_reg:
+                        self.error(f"[generaptor ERROR] {str(err_reg)}")
+                if self.config["run"]["generaptor"].get("iis", False):
                     self.info("[generaptor] Run IIS")
                     try:
                         res = self.get_iis_logs(logger=self.logger)
@@ -953,7 +991,7 @@ class Plugin(BasePlugin):
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
                     if self.is_logstash_active:
                         self.send_iis_logs(iis_logs=res, logger=self.logger)
-                if self.config["run"]["generaptor"]["timeline"]:
+                if self.config["run"]["generaptor"].get("timeline", False):
                     self.info("[generaptor] Run PLASO")
                     self.check_docker_image(
                         image_name=self.docker_images["plaso"]["image"],

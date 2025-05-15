@@ -7,7 +7,7 @@ from logging import Logger
 import bs4
 from pathlib import Path
 import re
-from ..triageutils import send_data_to_elk, delete_file
+from ..triageutils import send_data_to_elk, delete_file, generate_analytics
 
 
 class MBOXParser:
@@ -36,21 +36,8 @@ class MBOXParser:
         self.mbox_path = mbox_path
         self.output_dir = output_dir
         self.is_logstash_active = is_logstash_active
-        self._analytics = self._generate_analytics()
+        self._analytics = generate_analytics()
 
-    def _generate_analytics(self) -> dict:
-        try:
-            _analytics = dict()
-            _analytics["eventcount"] = 0
-            _analytics["attachments"] = 0
-            _analytics["attributes"] = 0
-            _analytics["path"] = ""
-            _analytics["name"] = ""
-            _analytics["size"] = 0
-            return _analytics
-        except Exception as ex:
-            self.logger.error(f"[_generate_analytics] {ex}")
-            return dict()
 
     def send_to_elk(self, json_data: list, extrafields: dict = {}):
         """Fonction qui envoie les résultats d'un array vers ELK"""
@@ -177,23 +164,23 @@ class MBOXParser:
                 content_type = msg.get_content_type()
                 if "application/" in content_type.lower():
                     content = base64.b64decode(pyld)
-                    self._analytics["attachments"] += 1
+                    self._analytics["log"]["file"]["attachments"] += 1
                     _res["fingerprints"] = self._fingerprints(blob=content)
                 elif "image/" in content_type.lower():
                     content = base64.b64decode(pyld)
-                    self._analytics["attachments"] += 1
+                    self._analytics["log"]["file"]["attachments"] += 1
                     _res["fingerprints"] = self._fingerprints(blob=content)
                 elif "video/" in content_type.lower():
                     content = base64.b64decode(pyld)
-                    self._analytics["attachments"] += 1
+                    self._analytics["log"]["file"]["attachments"] += 1
                     _res["fingerprints"] = self._fingerprints(blob=content)
                 elif "audio/" in content_type.lower():
                     content = base64.b64decode(pyld)
-                    self._analytics["attachments"] += 1
+                    self._analytics["log"]["file"]["attachments"] += 1
                     _res["fingerprints"] = self._fingerprints(blob=content)
                 elif "text/csv" in content_type.lower():
                     content = base64.b64decode(pyld)
-                    self._analytics["attachments"] += 1
+                    self._analytics["log"]["file"]["attachments"] += 1
                     _res["fingerprints"] = self._fingerprints(blob=content)
                 elif "info/" in content_type.lower():
                     _res["body"] = pyld
@@ -202,7 +189,7 @@ class MBOXParser:
                     "text/calendar" in content_type.lower()
                     or "text/rtf" in content_type.lower()
                 ):
-                    self._analytics["attachments"] += 1
+                    self._analytics["log"]["file"]["attachments"] += 1
                     _res["fingerprints"] = self._fingerprints(blob=content)
 
                 elif "text/plain" in content_type.lower():
@@ -234,15 +221,14 @@ class MBOXParser:
         try:
             # Read in the MBOX File
             email = dict()
-            email["path"] = self.mbox_path
+            email["path"] = str(self.mbox_path)
             email["attachments"] = list()
             email["headers"] = dict()
             mbox = mailbox.mbox(path=self.mbox_path, factory=self.custom_reader)
             self.logger.info(f"[run] Number of messages to parse {len(mbox)}")
-            self._analytics["eventcount"] = len(mbox)
-            self._analytics["path"] = self.mbox_path
-            self._analytics["name"] = self.mbox_path.stem
-            self._analytics["size"] = self.mbox_path.stat().st_size
+            self._analytics["log"]["file"]["eventcount"] = len(mbox)
+            self._analytics["log"]["file"]["path"] = str(self.mbox_path)
+            self._analytics["log"]["file"]["size"] = self.mbox_path.stat().st_size
             for message in mbox:
                 header_data = dict(message._headers)
                 for hdr in header_data:
@@ -260,7 +246,11 @@ class MBOXParser:
                 except Exception as e:
                     self.logger.error(f"[run] Error reading payload {str(e)}")
                 if self.is_logstash_active:
-                    self.send_to_elk(json_data=email, extrafields=self.extrafields)
+                    try:
+                        self.send_to_elk(json_data=email, extrafields=self.extrafields)
+                        self._analytics["log"]["file"]["eventsent"] += 1
+                    except Exception as ex:
+                        pass
             self.write_json(
                 content=email,
                 output_file=self.output_dir / Path(f"{self.mbox_path.stem}.json"),

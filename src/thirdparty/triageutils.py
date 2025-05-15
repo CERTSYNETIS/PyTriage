@@ -90,6 +90,9 @@ def copy_file(
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
 ):
+    """
+    Copy file (src) to directory (dst)
+    """
     if not directory_exists(dir=dst, logger=logger):
         create_directory_path(path=dst, logger=logger)
     if not overwrite:
@@ -98,6 +101,19 @@ def copy_file(
             n_file = f"{str(time.time()).split('.')[0]}_{src.split('/')[-1]}"
             dst = f"{dst}/{n_file}"
             logger.info(f"[copy_file] File already exists, renamed: {n_file}")
+    return shutil.copy2(src, dst)
+
+
+@LOG
+def copy_file_strict(
+    src: Path,
+    dst: Path,
+    LOGLEVEL: str = "INFO",
+    logger=LOGGER,
+):
+    """
+    Copy file(src) to file (dst)
+    """
     return shutil.copy2(src, dst)
 
 
@@ -1246,7 +1262,7 @@ def generate_filebeat_config(
         _module["eve"]["enabled"] = True
         _module["eve"]["input"] = dict()
         _module["eve"]["input"]["close_eof"] = True
-        _module["eve"]["var.paths"] = ["/tmp/suricata/"]
+        _module["eve"]["var.paths"] = ["/tmp/suricata/*eve.json*"]
         _config["filebeat.modules"].append(_module)
 
         _module = dict()
@@ -1410,3 +1426,26 @@ def get_file_informations(
         if logger:
             logger.error(f"[get_file_informations] {ex}")
         return {}
+
+@LOG
+def generate_analytics(LOGLEVEL: str = "INFO", logger=LOGGER) -> dict:
+    try:
+        _analytics = dict()
+        _analytics["log"] = dict()
+        _analytics["log"]["file"] = dict()
+        _analytics["log"]["file"]["eventcount"] = 0
+        _analytics["log"]["file"]["eventsent"] = 0
+        _analytics["log"]["file"]["attributes"] = 0
+        _analytics["log"]["file"]["path"] = ""
+        _analytics["log"]["file"]["size"] = 0
+        _analytics["log"]["file"]["lastaccessed"] = ""
+        _analytics["log"]["file"]["creation"] = ""
+        
+        _analytics["csirt"] = dict()
+        _analytics["csirt"]["client"] = ""
+        _analytics["csirt"]["hostname"] = ""
+        _analytics["csirt"]["application"] = ""
+        return _analytics
+    except Exception as ex:
+        logger.error(f"[generate_analytics] {ex}")
+        return dict()

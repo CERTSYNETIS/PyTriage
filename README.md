@@ -64,6 +64,7 @@ OU
 - Parsing MPLog
 - Parsing Windows10 Timeline (ActivitiesCache)
 - Parsing $Recycle.Bin
+- Récupération des fichiers d'historique Powershell des utilisateurs
 
 #### GENERAPTOR Windows
 
@@ -84,6 +85,7 @@ OU
 - Parsing MPLog
 - Parsing Windows10 Timeline (ActivitiesCache)
 - Parsing $Recycle.Bin
+- Récupération des fichiers d'historique Powershell des utilisateurs
 
 #### DFIR-ORC
 

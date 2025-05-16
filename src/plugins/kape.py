@@ -86,6 +86,9 @@ class Plugin(BasePlugin):
         self.recyclebin_dir = Path(os.path.join(self.kape_dir, "RecycleBin"))
         triageutils.create_directory_path(path=self.recyclebin_dir, logger=self.logger)
 
+        self.psreadline_dir = Path(os.path.join(self.kape_dir, "PSReadLine"))
+        triageutils.create_directory_path(path=self.psreadline_dir, logger=self.logger)
+
     @triageutils.LOG
     def extract_zip(self, archive=None, dest=None, specific_files=[], logger=None):
         """Extrait tous les fichiers de l'archive ZIP contenant les modules et le VHDX.

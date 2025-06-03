@@ -84,8 +84,8 @@ def LOG(f):
 
 @LOG
 def copy_file(
-    src: str = "",
-    dst: str = "",
+    src: str | Path = "",
+    dst: str | Path = "",
     overwrite: bool = False,
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
@@ -119,8 +119,8 @@ def copy_file_strict(
 
 @LOG
 def copy_directory(
-    src: str = "", dst: str = "", LOGLEVEL: str = "INFO", logger=LOGGER
-) -> str:
+    src: str | Path = "", dst: str | Path = "", LOGLEVEL: str = "INFO", logger=LOGGER
+) -> str | Path:
     return shutil.copytree(src=src, dst=dst, dirs_exist_ok=True)
 
 
@@ -154,7 +154,7 @@ def list_directory(
 
 @LOG
 def list_directory_full_path(
-    src: str = "",
+    src: str | Path = "",
     onlyfiles: bool = False,
     onlydirs: bool = False,
     LOGLEVEL: str = "INFO",
@@ -196,7 +196,7 @@ def move_file(
 @LOG
 def copy_files(
     src: list = [],
-    dst: str = "",
+    dst: str | Path = "",
     overwrite: bool = False,
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
@@ -212,34 +212,7 @@ def copy_files(
 
 
 @LOG
-def async_trim_files(
-    parentdir: str = "",
-    src: list | str = None,
-    pattern: str = None,
-    overwrite: bool = False,
-    logger=LOGGER,
-) -> list:
-    # separate filename into name and extension
-    # rename file
-    dsts = []
-    try:
-        if isinstance(src, list):
-            for f in src:
-                dst = re.sub(pattern, "", f)
-                os.rename(os.path.join(parentdir, f), os.path.join(parentdir, dst))
-                dsts.append(os.path.join(parentdir, dst))
-        if isinstance(src, str):
-            dst = re.sub(pattern, "", src)
-            os.rename(os.path.join(parentdir, src), os.path.join(parentdir, dst))
-            dsts.append(os.path.join(parentdir, dst))
-        return dsts
-    except Exception as e:
-        logger.error(f"[async_trim_files] Error trimming pattern {e}")
-        return dsts
-
-
-@LOG
-def delete_directory(src: str = None, LOGLEVEL: str = "INFO", logger=LOGGER) -> bool:
+def delete_directory(src: str = "", LOGLEVEL: str = "INFO", logger=LOGGER) -> bool:
     try:
         if directory_exists(dir=src, logger=logger):
             shutil.rmtree(src)
@@ -253,7 +226,7 @@ def delete_directory(src: str = None, LOGLEVEL: str = "INFO", logger=LOGGER) -> 
 
 
 @LOG
-def delete_file(src: str = None, LOGLEVEL: str = "INFO", logger=LOGGER) -> bool:
+def delete_file(src: str = "", LOGLEVEL: str = "INFO", logger=LOGGER) -> bool:
     try:
         if os.path.exists(src):
             os.remove(src)
@@ -267,7 +240,7 @@ def delete_file(src: str = None, LOGLEVEL: str = "INFO", logger=LOGGER) -> bool:
 
 @LOG
 def delete_files_in_directory(
-    src: str = None, files_to_save: list = [], LOGLEVEL: str = "INFO", logger=LOGGER
+    src: str = "", files_to_save: list = [], LOGLEVEL: str = "INFO", logger=LOGGER
 ) -> bool:
     try:
         if directory_exists(dir=src, logger=logger):
@@ -288,7 +261,7 @@ def delete_files_in_directory(
 
 
 @LOG
-def create_directory_path(path: str = "", LOGLEVEL: str = "INFO", logger=LOGGER):
+def create_directory_path(path: str | Path = "", LOGLEVEL: str = "INFO", logger=LOGGER):
     try:
         Path(path).mkdir(parents=True, exist_ok=True)
         return True
@@ -298,7 +271,7 @@ def create_directory_path(path: str = "", LOGLEVEL: str = "INFO", logger=LOGGER)
 
 
 @LOG
-def file_exists(file: str = "", LOGLEVEL: str = "INFO", logger=LOGGER) -> bool:
+def file_exists(file: str | Path = "", LOGLEVEL: str = "INFO", logger=LOGGER) -> bool:
     try:
         if Path(file).is_file():
             return True
@@ -323,9 +296,9 @@ def directory_exists(dir: str = "", LOGLEVEL: str = "INFO", logger=LOGGER) -> bo
 
 @LOG
 def search_files(
-    src: str = "",
-    pattern: str = None,
-    patterninpath: str = None,
+    src: str | Path = "",
+    pattern: str = "",
+    patterninpath: str = "",
     strict: bool = False,
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
@@ -365,9 +338,9 @@ def search_files(
 
 @LOG
 def search_files_generator(
-    src: str = "",
-    pattern: str = None,
-    patterninpath: str = None,
+    src: str | Path = "",
+    pattern: str = "",
+    patterninpath: str = "",
     strict: bool = False,
     logger=LOGGER,
 ):
@@ -404,9 +377,9 @@ def search_files_generator(
 
 @LOG
 def search_files_by_extension_generator(
-    src: str,
+    src: str | Path,
     extension: str,
-    patterninpath: str = None,
+    patterninpath: str = "",
     logger=LOGGER,
 ):
     """Cherche tous les fichiers récursivement selon un pattern sur le nom du fichier et/ou un pattern sur le nom du path.
@@ -423,7 +396,7 @@ def search_files_by_extension_generator(
     obj = os.walk(src)
     for dir_path, dir_names, file_names in obj:
         for file in file_names:
-            if patterninpath is not None:
+            if patterninpath:
                 if patterninpath.lower() in dir_path.lower():
                     if file.endswith(extension):
                         yield Path(os.path.join(dir_path, file))
@@ -433,8 +406,8 @@ def search_files_by_extension_generator(
 
 @LOG
 def get_folder_path_by_name(
-    folder_name: str,
-    root: str,
+    folder_name: str | Path,
+    root: str | Path,
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
 ) -> Path:
@@ -451,8 +424,8 @@ def get_folder_path_by_name(
 
 @LOG
 def search_files_by_extension(
-    dir: str = "",
-    extension: str = None,
+    dir: str | Path = "",
+    extension: str = "",
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
 ) -> list:
@@ -486,8 +459,8 @@ def get_file_in_list(
 
 @LOG
 def extract_tar_archive(
-    archive: str = None,
-    dest: str = None,
+    archive: str = "",
+    dest: str = "",
     specific_files: list = [],
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
@@ -506,14 +479,14 @@ def extract_tar_archive(
     if tarfile.is_tarfile(archive):
         f_path = archive
         if archive.endswith("tar.gz"):
-            archive = tarfile.open(archive, "r:gz")
+            _archive = tarfile.open(archive, "r:gz")
         elif archive.endswith("tar"):
-            archive = tarfile.open(archive, "r:")
+            _archive = tarfile.open(archive, "r:")
         else:
             logger.error("[extract_tar_archive] Not a valid TAR")
             raise Exception("[extract_tar_archive] Not a valid TAR")
         ret = archive
-        names = archive.getnames()
+        names = _archive.getnames()
         logger.info(f"[extract_tar_archive] nb of files: {len(names)}")
         if names and specific_files:
             for name in names:
@@ -523,10 +496,10 @@ def extract_tar_archive(
         try:
             if len(specific_files) > 0:
                 for f in specific_files:
-                    archive.extract(f, path=dest)
+                    _archive.extract(f, path=dest)
             else:
-                archive.extractall(path=dest)
-            archive.close()
+                _archive.extractall(path=dest)
+            _archive.close()
 
         except Exception as ex:
             logger.error(f"[extract_tar_archive] {str(ex)}")
@@ -549,8 +522,8 @@ def extract_tar_archive(
 
 @LOG
 def extract_zip_archive(
-    archive: str = None,
-    dest: str = None,
+    archive: str | Path = "",
+    dest: str | Path = "",
     specific_files: list = [],
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
@@ -568,9 +541,9 @@ def extract_zip_archive(
         raise Exception("[extract_zip_archive] Args missing")
     if zipfile.is_zipfile(archive):
         f_path = archive
-        archive = zipfile.ZipFile(archive)
-        ret = archive
-        names = archive.namelist()
+        _archive = zipfile.ZipFile(archive)
+        ret = _archive
+        names = _archive.namelist()
         if names and specific_files:
             for name in names:
                 # z1i = archive.getinfo(name)
@@ -583,12 +556,12 @@ def extract_zip_archive(
         try:
             if len(specific_files) > 0:
                 for f in specific_files:
-                    archive.extract(f, path=dest)
+                    _archive.extract(f, path=dest)
             else:
-                archive.extractall(path=dest)
-            archive.close()
+                _archive.extractall(path=dest)
+            _archive.close()
         except Exception as ex:
-            archive.close()
+            _archive.close()
             logger.error(f"[extract_zip_archive] {str(ex)}")
             logger.info(f"[extract_zip_archive] Exec unzip command...")
             p = subprocess.Popen(
@@ -611,7 +584,7 @@ def extract_zip_archive(
 
 @LOG
 def extract_gzip_archive(
-    archive: str = None, dest: str = None, LOGLEVEL: str = "INFO", logger=LOGGER
+    archive: str = "", dest: str = "", LOGLEVEL: str = "INFO", logger=LOGGER
 ):
     with gzip.open(archive, "rb") as f_in:
         with open(dest, "wb") as f_out:
@@ -620,7 +593,7 @@ def extract_gzip_archive(
 
 @LOG
 def extract_7z_archive(
-    archive: str, dest: str, password: str = None, LOGLEVEL: str = "INFO", logger=LOGGER
+    archive: str | Path, dest: str | Path, password: str = "", LOGLEVEL: str = "INFO", logger=LOGGER
 ) -> bool:
     try:
         if not archive or not dest:
@@ -635,10 +608,10 @@ def extract_7z_archive(
 
 @LOG
 def decrypt_orc_archive(
-    archive: str,
-    dest: str,
-    private_key: str = None,
-    key_password: str = None,
+    archive: str | Path,
+    dest: str | Path,
+    private_key: str | Path,
+    key_password: str = "",
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
 ) -> tuple[bool, Path]:
@@ -676,7 +649,7 @@ def decrypt_orc_archive(
 
 
 @LOG
-def detectEncoding(src: str = None, LOGLEVEL: str = "INFO", logger=LOGGER):
+def detectEncoding(src: str = "", LOGLEVEL: str = "INFO", logger=LOGGER):
     if not src:
         return None
     result = chardet.detect(open(src, "rb").read())
@@ -685,7 +658,7 @@ def detectEncoding(src: str = None, LOGLEVEL: str = "INFO", logger=LOGGER):
 
 @LOG
 def rename_key_in_dict(
-    mydict: dict = None,
+    mydict: dict = {},
     key: str = "",
     new_key: str = "",
     LOGLEVEL="INFO",
@@ -705,8 +678,8 @@ def rename_key_in_dict(
 @LOG
 def import_timesketch(
     timelinename=None,
-    file: str = None,
-    timesketch_id: int = None,
+    file: str = "",
+    timesketch_id: int = 0,
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
 ):
@@ -862,15 +835,16 @@ def send_data_to_elk(
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         logger.info("[send_data_to_elk] socket created")
     except Exception as e:
-        sock.close()
+        if sock:
+            sock.close()
         logger.error(str(e))
         raise e
     try:
+        count = 0
         logger.info(f"[send_data_to_elk] Try to connect to : {ip}:{port}")
         sock.connect((ip, port))
         logger.info(f"[send_data_to_elk] socket connected to : {ip}:{port}")
         logger.debug(f"[send_data_to_elk] Data type : {type(data)}")
-        count = 0
         if type(data) is list:
             total = len(data)
             logger.info(f"[send_data_to_elk] Number of Data to send : {total}")
@@ -983,9 +957,9 @@ def send_jsonl_to_elk(
 
 @LOG
 def zip_folder(
-    zip_path: str = None,
-    zip_name: str = None,
-    target_dir: str = None,
+    zip_path: str = "",
+    zip_name: str = "",
+    target_dir: str = "",
     del_directory: bool = True,
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
@@ -1017,8 +991,8 @@ def zip_folder(
 
 @LOG
 def csv_to_json(
-    csvFilePath: str = None,
-    jsonFilePath: str = None,
+    csvFilePath: str = "",
+    jsonFilePath: str = "",
     delimiter: str = ";",
     encoding: str = "utf-8-sig",
     writeToFile: bool = False,
@@ -1050,7 +1024,7 @@ def csv_to_json(
                 row.update(extrafields)
                 jsonArray.append(row)
     except UnicodeDecodeError as ex:
-        LOGGER.info(f"[csv_to_json] Encoding error try another...")
+        logger.info(f"[csv_to_json] Encoding error try another...")
         with open(csvFilePath, encoding="latin-1") as csvf:
             dialect = csv.Sniffer().sniff(csvf.read(1024))
             csvf.seek(0)
@@ -1058,7 +1032,7 @@ def csv_to_json(
             for row in csvReader:
                 row.update(extrafields)
                 jsonArray.append(row)
-        LOGGER.info(f"[csv_to_json] Done")
+        logger.info(f"[csv_to_json] Done")
     if writeToFile:
         with open(jsonFilePath, "w", encoding="utf-8") as jsonf:
             if writeasjsonline:
@@ -1073,16 +1047,16 @@ def csv_to_json(
 
 @LOG
 def txt_to_json(
-    FilePath: str = None,
-    jsonFilePath: str = None,
+    FilePath: str = "",
+    jsonFilePath: str = "",
     sanitize: bool = False,
-    encoding: str = None,
+    encoding: str = "",
     writeToFile: bool = False,
     extrafields: dict = {},
     LOGLEVEL: str = "INFO",
     step: int = 16,
     logger=LOGGER,
-) -> list:
+) -> dict:
     """Fonction qui lit un fichier texte en json
 
      Args:
@@ -1150,7 +1124,7 @@ def extract_file_name(path=None, extension=None) -> dict:
 
 
 @LOG
-def _test_file_magic(filepath=None, magic=[], logger=LOGGER):
+def _test_file_magic(filepath: str = "", magic=[], logger=LOGGER) -> bool:
     try:
         with open(filepath, "rb") as test_f:
             for signature in magic:
@@ -1164,7 +1138,7 @@ def _test_file_magic(filepath=None, magic=[], logger=LOGGER):
 
 
 @LOG
-def eval_file_format(path=None, logger=LOGGER) -> dict:
+def eval_file_format(path: str = "", logger=LOGGER) -> dict:
     """
     Identification de format d'archive
     returns:
@@ -1178,6 +1152,7 @@ def eval_file_format(path=None, logger=LOGGER) -> dict:
             return {"format": ".7z.p7b"}
         else:
             return res
+    return res
 
 
 @LOG
@@ -1361,7 +1336,7 @@ def generate_fortinet_filebeat_config(
         )
         return _config
     except Exception as ex:
-        print(f"[generate_fortinet_filebeat_config] {str(ex)}")
+        logger.error(f"[generate_fortinet_filebeat_config] {str(ex)}")
         return {}
 
 
@@ -1427,6 +1402,7 @@ def get_file_informations(
             logger.error(f"[get_file_informations] {ex}")
         return {}
 
+
 @LOG
 def generate_analytics(LOGLEVEL: str = "INFO", logger=LOGGER) -> dict:
     try:
@@ -1440,7 +1416,7 @@ def generate_analytics(LOGLEVEL: str = "INFO", logger=LOGGER) -> dict:
         _analytics["log"]["file"]["size"] = 0
         _analytics["log"]["file"]["lastaccessed"] = ""
         _analytics["log"]["file"]["creation"] = ""
-        
+
         _analytics["csirt"] = dict()
         _analytics["csirt"]["client"] = ""
         _analytics["csirt"]["hostname"] = ""

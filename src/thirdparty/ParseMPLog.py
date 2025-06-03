@@ -2,7 +2,7 @@ import csv
 import fnmatch
 import os
 import re
-import sys
+from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Any, Union
 
@@ -47,15 +47,15 @@ class OsAdapter:
 class ParseMPLog:
     """MPLogParser class finds and parses interesting entries and writes results to output files as CSV."""
 
-    def __init__(self, mplog_file: str, output_directory: str):
+    def __init__(self, mplog_file: Path, output_directory: Path):
         """Creates MpLogParser object from command line arguments.
         Defines mainly:
         - Regexes use to parse entries
         - Regex use to get MPLogs
         - Output file names
         """
-        self._mplog_file: str = mplog_file
-        self._output_directory: str = output_directory
+        self._mplog_file: Path = mplog_file
+        self._output_directory: Path = output_directory
         self._os_adapter: OsAdapter = OsAdapter()
         self._mini_filter_unsuccessful_scan_status_pattern: str = r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*\[Mini-filter\] (Unsuccessful scan status): (.+) (Process): (.+), (Status): (.+), (State): (.+), (ScanRequest) (.+), (FileId): (.+), (Reason): (.+), (IoStatusBlockForNewFile): (.+), (DesiredAccess):(.+), (FileAttributes):(.+), (ScanAttributes):(.+), (AccessStateFlags):(.+), (BackingFileInfo): (.+)"
         self._mini_filter_blocked_file_pattern: str = r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*\[Mini-filter\] (Blocked file): (.+) (Process): (.+), (Status): (.+), (State): (.+), (ScanRequest) (.+), (FileId): (.+), (Reason): (.+), (IoStatusBlockForNewFile): (.+), (DesiredAccess):(.+), (FileAttributes):(.+), (ScanAttributes):(.+), (AccessStateFlags):(.+), (BackingFileInfo): (.+)"
@@ -78,46 +78,47 @@ class ParseMPLog:
             r"[*]{28}RTP Perf Log[*]{27}(?:.*\n)+?[*]{26}END RTP Perf Log[*]{25}"
         )
         self._mini_filter_unsuccessful_scan_status_output_csv = self._os_adapter.join(
-            self._output_directory, "MPLog_UnsuccessfulScanStatus.csv"
+            self._output_directory.absolute().as_posix(),
+            "MPLog_UnsuccessfulScanStatus.csv",
         )
         self._mini_filter_blocked_file_output_csv = self._os_adapter.join(
-            self._output_directory, "MPLog_BlockedFile.csv"
+            self._output_directory.absolute().as_posix(), "MPLog_BlockedFile.csv"
         )
         self._exclusion_list_output_csv = self._os_adapter.join(
-            self._output_directory, "MPLog_ExclusionList.csv"
+            self._output_directory.absolute().as_posix(), "MPLog_ExclusionList.csv"
         )
         self._lowfi_output_csv = self._os_adapter.join(
-            self._output_directory, "MPLog_Lowfi.csv"
+            self._output_directory.absolute().as_posix(), "MPLog_Lowfi.csv"
         )
         self._detection_add_output_csv = self._os_adapter.join(
-            self._output_directory, "MPLog_DetectionAdd.csv"
+            self._output_directory.absolute().as_posix(), "MPLog_DetectionAdd.csv"
         )
         self._threat_command_line_csv_output = self._os_adapter.join(
-            self._output_directory, "MPLog_ThreatCommandLine.csv"
+            self._output_directory.absolute().as_posix(), "MPLog_ThreatCommandLine.csv"
         )
         self._detection_event_output_csv = self._os_adapter.join(
-            self._output_directory, "MPLog_DetectionEvent.csv"
+            self._output_directory.absolute().as_posix(), "MPLog_DetectionEvent.csv"
         )
         self._original_filename_output_csv = self._os_adapter.join(
-            self._output_directory, "MPLog_OriginalFilename.csv"
+            self._output_directory.absolute().as_posix(), "MPLog_OriginalFilename.csv"
         )
         self._ems_output_csv = self._os_adapter.join(
-            self._output_directory, "MPLog_Ems.csv"
+            self._output_directory.absolute().as_posix(), "MPLog_Ems.csv"
         )
         self._bm_telemetry_output_csv = self._os_adapter.join(
-            self._output_directory, "MPLog_BMTelemetry.csv"
+            self._output_directory.absolute().as_posix(), "MPLog_BMTelemetry.csv"
         )
         self._resource_scan_output_csv = self._os_adapter.join(
-            self._output_directory, "MPLog_ResourceScan.csv"
+            self._output_directory.absolute().as_posix(), "MPLog_ResourceScan.csv"
         )
         self._threat_action_output_csv = self._os_adapter.join(
-            self._output_directory, "MPLog_ThreatAction.csv"
+            self._output_directory.absolute().as_posix(), "MPLog_ThreatAction.csv"
         )
         self._process_image_name_csv_output = self._os_adapter.join(
-            self._output_directory, "MPLog_ProcessImageName.csv"
+            self._output_directory.absolute().as_posix(), "MPLog_ProcessImageName.csv"
         )
         self._rtp_perf_csv_output = self._os_adapter.join(
-            self._output_directory, "MPLog_RTPPerf.csv"
+            self._output_directory.absolute().as_posix(), "MPLog_RTPPerf.csv"
         )
         self._entries_parser_regex = re.compile(r"^([\w -]+):(.+)$", re.MULTILINE)
         self.mplog_file_name_pattern = "*MPLog-*"
@@ -422,8 +423,8 @@ class ParseMPLog:
     def orchestrator(self) -> None:
         """Runs parsers and writes results to output files."""
         # for file in self._os_adapter.listdir(self._mplogs_directory):
-        if fnmatch.fnmatch(self._mplog_file, self.mplog_file_name_pattern):
-            full_path = self._mplog_file
+        if fnmatch.fnmatch(str(self._mplog_file), self.mplog_file_name_pattern):
+            full_path = self._mplog_file.absolute().as_posix()
             try:
                 logs = self._os_adapter.read_file(full_path, "r", "UTF-16")
             except UnicodeError:

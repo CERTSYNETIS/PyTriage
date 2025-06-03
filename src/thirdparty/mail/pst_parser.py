@@ -37,7 +37,6 @@ class PSTParser:
         self.is_logstash_active = is_logstash_active
         self._analytics = generate_analytics()
 
-    
     def save_attachment(self, data: None, path: str = "", name: str = "") -> None:
         try:
             with open(os.path.join(path, name), "wb+") as out:

@@ -4,6 +4,7 @@ import re
 import yaml
 import docker
 from pathlib import Path
+from logging import Logger
 from src.thirdparty import triageutils as triageutils
 from src.thirdparty.ParseEVTX import ParseEVTX
 from src import BasePlugin
@@ -25,7 +26,7 @@ class Plugin(BasePlugin):
         triageutils.create_directory_path(path=self.standalone_dir, logger=self.logger)
 
     @triageutils.LOG
-    def standalone_hayabusa(self, logger=None):
+    def standalone_hayabusa(self, logger: Logger):
         """Fonction qui envoie les résultats hayabusa vers ELK"""
         try:
             with open(self.standalone_input_file, "r") as jsonl_f:
@@ -67,14 +68,20 @@ class Plugin(BasePlugin):
             # Send analytics
             if self.is_logstash_active:
                 self.standalone_input_file = Path(self.standalone_input_file)
-                _file_infos = triageutils.get_file_informations(filepath=self.standalone_input_file)
+                _file_infos = triageutils.get_file_informations(
+                    filepath=self.standalone_input_file
+                )
                 _analytics = triageutils.generate_analytics(logger=self.logger)
                 _analytics["log"]["file"]["eventcount"] = len(json_data)
                 _analytics["log"]["file"]["eventsent"] = _event_sent
                 _analytics["log"]["file"]["path"] = self.standalone_input_file.name
                 _analytics["log"]["file"]["size"] = _file_infos.get("fileSize", 0)
-                _analytics["log"]["file"]["lastaccessed"] = _file_infos.get("lastAccessTime", 0)
-                _analytics["log"]["file"]["creation"] = _file_infos.get("creationTime", 0)
+                _analytics["log"]["file"]["lastaccessed"] = _file_infos.get(
+                    "lastAccessTime", 0
+                )
+                _analytics["log"]["file"]["creation"] = _file_infos.get(
+                    "creationTime", 0
+                )
                 _analytics["csirt"]["client"] = self.clientname
                 _analytics["csirt"]["hostname"] = self.hostname
                 _analytics["csirt"]["application"] = "standalone_hayabusa"
@@ -89,7 +96,9 @@ class Plugin(BasePlugin):
             raise e
 
     @triageutils.LOG
-    def standalone_extract_zip(self, archive=None, dest=None, logger=None):
+    def standalone_extract_zip(
+        self, archive: str | Path, dest: str | Path, logger: Logger
+    ):
         """Extrait tous les fichiers de l'archive ZIP contenant les EVTX
         Args:
             archive (str): optionnel chemin complet du fichier zip
@@ -112,7 +121,7 @@ class Plugin(BasePlugin):
             raise ex
 
     @triageutils.LOG
-    def standalone_get_evtx(self, evtx_folder=None, logger=None) -> list:
+    def standalone_get_evtx(self, evtx_folder: str | Path, logger: Logger) -> list:
         """Retourne les evtx présents dans le dossier vers le dossier partagé.
         Args:
             evtx_folder (str): optionnel chemin du dossier contenant les fichiers evtx si pas de dossier, il cherche dans tout le vhdx
@@ -124,8 +133,8 @@ class Plugin(BasePlugin):
             if not evtx_folder:
                 raise Exception("no EVTX folder")
             records.extend(
-                triageutils.search_files(
-                    src=evtx_folder, pattern=".evtx", logger=self.logger
+                triageutils.search_files_by_extension(
+                    dir=evtx_folder, extension=".evtx", logger=self.logger
                 )
             )
             return records
@@ -134,7 +143,7 @@ class Plugin(BasePlugin):
             raise ex
 
     @triageutils.LOG
-    def standalone_winlogbeat(self, evtx_logs=[], logger=None):
+    def standalone_winlogbeat(self, evtx_logs: list, logger: Logger):
         """Copie les evtx vers le dossier partagé sur la VM Winlogbeat.
         Args:
             evtx_logs (list): Liste contenant les chemins des fichiers de log
@@ -158,7 +167,7 @@ class Plugin(BasePlugin):
         return result
 
     @triageutils.LOG
-    def standalone_fortinet_log_old(self, logs=[], logger=None):
+    def standalone_fortinet_log_old(self, logs: list, logger: Logger):
         """Fonction qui envoie les résultats de parsing de logs fortinet vers ELK"""
         try:
             total = len(logs)
@@ -180,6 +189,7 @@ class Plugin(BasePlugin):
                                     for i in range(len(keys))
                                 }
                             except Exception as _error:
+                                _data = dict()
                                 self.error(
                                     f"[standalone_fortinet_log] _data error : {_error}"
                                 )
@@ -228,7 +238,7 @@ class Plugin(BasePlugin):
             raise e
 
     @triageutils.LOG
-    def standalone_fortinet_filebeat(self, log_folder: str, logger=None):
+    def standalone_fortinet_filebeat(self, log_folder: str | Path, logger: Logger):
         """Fonction qui exeécute filebeat sur logs fortinet et les envoie vers ELK"""
         try:
             ip = self.logstash_url
@@ -271,7 +281,7 @@ class Plugin(BasePlugin):
             raise e
 
     @triageutils.LOG
-    def standalone_forcepoint_log(self, logs=[], logger=None):
+    def standalone_forcepoint_log(self, logs: list, logger: Logger):
         """Fonction qui envoie les résultats de parsing de logs forcepoint vers ELK"""
         try:
             total = len(logs)
@@ -293,6 +303,7 @@ class Plugin(BasePlugin):
                                     for i in range(len(keys))
                                 }
                             except Exception as _error:
+                                _data = dict()
                                 self.error(
                                     f"[standalone_forcepoint_log] _data error : {_error}"
                                 )
@@ -338,7 +349,7 @@ class Plugin(BasePlugin):
             raise e
 
     @triageutils.LOG
-    def standalone_get_log_files(self, log_folder=None, logger=None) -> list:
+    def standalone_get_log_files(self, log_folder: str | Path, logger: Logger) -> list:
         """Retourne les log présents dans le dossier.
         Args:
             log_folder (str): chemin du dossier contenant les fichiers log
@@ -375,7 +386,10 @@ class Plugin(BasePlugin):
         try:
             if self.config["run"]["standalone"]["hayabusa"] and self.is_logstash_active:
                 self.standalone_hayabusa(logger=self.logger)
-            elif self.config["run"]["standalone"]["winlogbeat"] and self.is_winlogbeat_active:
+            elif (
+                self.config["run"]["standalone"]["winlogbeat"]
+                and self.is_winlogbeat_active
+            ):
                 zip_destination = os.path.join(self.standalone_dir, "extract")
                 triageutils.create_directory_path(
                     path=zip_destination, logger=self.logger
@@ -406,8 +420,8 @@ class Plugin(BasePlugin):
                 _ip = self.logstash_url
                 if _ip.startswith("http"):
                     _ip = self.logstash_url.split("//")[1]
-                for _f in triageutils.search_files_generator(
-                    src=zip_destination, pattern=".evtx"
+                for _f in triageutils.search_files_by_extension_generator(
+                    src=zip_destination, extension=".evtx", logger=self.logger
                 ):
                     _p = ParseEVTX(
                         evtxfilepath=_f,
@@ -427,12 +441,22 @@ class Plugin(BasePlugin):
                     if self.is_logstash_active:
                         _file_infos = triageutils.get_file_informations(filepath=_f)
                         _analytics = triageutils.generate_analytics(logger=self.logger)
-                        _analytics["log"]["file"]["eventcount"] = _res.get("nb_events_read", 0)
-                        _analytics["log"]["file"]["eventsent"] = _res.get("nb_events_sent", 0)
+                        _analytics["log"]["file"]["eventcount"] = _res.get(
+                            "nb_events_read", 0
+                        )
+                        _analytics["log"]["file"]["eventsent"] = _res.get(
+                            "nb_events_sent", 0
+                        )
                         _analytics["log"]["file"]["path"] = _res.get("file", "")
-                        _analytics["log"]["file"]["size"] = _file_infos.get("fileSize", 0)
-                        _analytics["log"]["file"]["lastaccessed"] = _file_infos.get("lastAccessTime", 0)
-                        _analytics["log"]["file"]["creation"] = _file_infos.get("creationTime", 0)
+                        _analytics["log"]["file"]["size"] = _file_infos.get(
+                            "fileSize", 0
+                        )
+                        _analytics["log"]["file"]["lastaccessed"] = _file_infos.get(
+                            "lastAccessTime", 0
+                        )
+                        _analytics["log"]["file"]["creation"] = _file_infos.get(
+                            "creationTime", 0
+                        )
                         _analytics["csirt"]["client"] = self.clientname
                         _analytics["csirt"]["hostname"] = self.hostname
                         _analytics["csirt"]["application"] = "standalone_parse_evtx"
@@ -442,7 +466,9 @@ class Plugin(BasePlugin):
                             port=self.selfassessment_port,
                             logger=self.logger,
                         )
-            elif self.config["run"]["standalone"]["fortinet"] and self.is_logstash_active:
+            elif (
+                self.config["run"]["standalone"]["fortinet"] and self.is_logstash_active
+            ):
                 zip_destination = os.path.join(self.standalone_dir, "Fortinet")
                 triageutils.create_directory_path(
                     path=zip_destination, logger=self.logger
@@ -455,7 +481,10 @@ class Plugin(BasePlugin):
                 self.standalone_fortinet_filebeat(
                     log_folder=zip_destination, logger=self.logger
                 )
-            elif self.config["run"]["standalone"]["forcepoint"] and self.is_logstash_active:
+            elif (
+                self.config["run"]["standalone"]["forcepoint"]
+                and self.is_logstash_active
+            ):
                 zip_destination = os.path.join(self.standalone_dir, "Forcepoint")
                 triageutils.create_directory_path(
                     path=zip_destination, logger=self.logger
@@ -468,7 +497,7 @@ class Plugin(BasePlugin):
                 forcepoint_logs = self.standalone_get_log_files(
                     log_folder=zip_destination, logger=self.logger
                 )
-                self.standalone_forcepoint_log(logs=forcepoint_logs)
+                self.standalone_forcepoint_log(logs=forcepoint_logs, logger=self.logger)
         except Exception as ex:
             self.error(f"[Standalone] run {str(ex)}")
             raise ex

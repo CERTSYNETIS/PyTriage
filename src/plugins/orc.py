@@ -77,9 +77,10 @@ class Plugin(BasePlugin):
         _docker.close()
 
     @triageutils.LOG
-    def rename_orc_file(self, filepath: Path, logger: Logger):
+    def rename_orc_file(self, filepath: Path, logger: Logger, LOGLEVEL: str ="NOLOG"):
         """
         Rename file by keeping only real file name
+        logger and LOGLEVEL are used by LOG decorator
 
         return:
             Path: file's new path
@@ -99,7 +100,7 @@ class Plugin(BasePlugin):
             _new_path = Path(_path) / Path(_new_name)
 
             if triageutils.file_exists(file=_new_path, LOGLEVEL="NOLOG"):
-                self.info(f"[rename_orc_file] File exists !")
+                #self.info(f"[rename_orc_file] File exists !")
                 _parent = Path(_path) / Path(str(round(time.time() * 1000)))
                 triageutils.create_directory_path(path=_parent, LOGLEVEL="NOLOG")
                 _new_path = _parent / Path(_new_name).name
@@ -152,7 +153,7 @@ class Plugin(BasePlugin):
             for _file in triageutils.search_files_by_extension_generator(
                 src=self.orc_dir, extension=".data", logger=self.logger
             ):
-                records.append(self.rename_orc_file(filepath=_file, logger=self.logger))
+                records.append(self.rename_orc_file(filepath=_file, logger=self.logger, LOGLEVEL="NOLOG"))
             return records
         except Exception as ex:
             self.error(f"[extract_all_7z] {str(ex)}")

@@ -10,7 +10,7 @@ class Plugin(BasePlugin):
     O365 plugin pour triage
     """
 
-    def __init__(self, conf=None):
+    def __init__(self, conf: dict):
         super().__init__(config=conf)
         self.o365_dir = os.path.join(self.upload_dir, self.hostname, "o365")
         triageutils.create_directory_path(path=self.o365_dir, logger=self.logger)
@@ -77,7 +77,7 @@ class Plugin(BasePlugin):
         return records
 
     @triageutils.LOG
-    def o365_send_json_results(self, json_file=None, logger=None):
+    def o365_send_json_results(self, json_file: Path, logger=None):
         """Fonction qui envoie les résultats json o365 vers ELK"""
         try:
             try:

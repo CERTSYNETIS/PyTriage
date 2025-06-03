@@ -1,6 +1,7 @@
 import os
 import yaml
 import json
+from logging import Logger
 from slugify import slugify
 from src.thirdparty import triageutils as triageutils
 from src.thirdparty.logging import get_logger
@@ -73,7 +74,7 @@ class BasePlugin(object):
         with open(os.path.join("config", "mapping.json")) as mapp:
             return json.load(mapp)
 
-    def run(self):
+    def run(self, logger: Logger):
         """Main entry point of the plugin"""
         raise NotImplementedError("[BasePlugin] run() needs to be overriden")
 

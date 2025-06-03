@@ -854,12 +854,14 @@ class Plugin(BasePlugin):
             ):
                 self.info(f"[kape_get_consolehost_history] Parse: {_f}")
                 try:
-                    _username = _f.parts[_f.parts.index('Users')+1]
+                    _username = _f.parts[_f.parts.index("Users") + 1]
                 except Exception as errorname:
                     self.error(f"{errorname}")
                     _username = time.time()
                 _dst = self.psreadline_dir / Path(f"{_username}")
-                triageutils.copy_file(src=_f, dst=_dst, overwrite=True, logger=self.logger)
+                triageutils.copy_file(
+                    src=_f, dst=_dst, overwrite=True, logger=self.logger
+                )
         except Exception as ex:
             self.error(f"[kape_get_consolehost_history] {str(ex)}")
             raise ex
@@ -943,11 +945,11 @@ class Plugin(BasePlugin):
                 except Exception as err_reg:
                     self.error(f"[kape ERROR] {str(err_reg)}")
             if self.config["run"]["kape"].get("psreadline", False):
-                    self.info("[kape] Run PSReadline")
-                    try:
-                        self.kape_get_consolehost_history(logger=self.logger)
-                    except Exception as err_reg:
-                        self.error(f"[kape ERROR] {str(err_reg)}")
+                self.info("[kape] Run PSReadline")
+                try:
+                    self.kape_get_consolehost_history(logger=self.logger)
+                except Exception as err_reg:
+                    self.error(f"[kape ERROR] {str(err_reg)}")
             if self.config["run"]["kape"].get("iis", False):
                 try:
                     self.info("[KAPE] Run IIS")

@@ -88,8 +88,8 @@ class Plugin(BasePlugin):
         self.filebeat_dir = os.path.join(self.generaptor_dir, "filebeat")
         triageutils.create_directory_path(path=self.filebeat_dir, logger=self.logger)
 
-        self.activitiescache_share = os.path.join(
-            self.generaptor_dir, "ActivitiesCache"
+        self.activitiescache_share = Path(
+            os.path.join(self.generaptor_dir, "ActivitiesCache")
         )
         triageutils.create_directory_path(
             path=self.activitiescache_share, logger=self.logger
@@ -319,7 +319,7 @@ class Plugin(BasePlugin):
                     logger=self.logger,
                 )
         except Exception as ex:
-            self.logger.error(f"[generate_plaso_timeline] {ex}")
+            self.error(f"[generate_plaso_timeline] {ex}")
 
     @triageutils.LOG
     def generate_psort_timeline(self, plasofile: str, logger: Logger) -> str:
@@ -368,7 +368,7 @@ class Plugin(BasePlugin):
             s_file = os.path.join(self.plaso_folder, f"psort-{self.hostname}.jsonl")
             return s_file
         except Exception as ex:
-            self.logger.error(f"[generate_psort_timeline] {ex}")
+            self.error(f"[generate_psort_timeline] {ex}")
             return ""
 
     @triageutils.LOG
@@ -408,8 +408,8 @@ class Plugin(BasePlugin):
         if not evtx_folder:
             raise Exception("No evtx folder")
         records.extend(
-            triageutils.search_files(
-                src=evtx_folder, pattern=".evtx", logger=self.logger
+            triageutils.search_files_by_extension(
+                dir=evtx_folder, extension=".evtx", logger=self.logger
             )
         )
         if len(records):
@@ -695,12 +695,20 @@ class Plugin(BasePlugin):
                 if self.is_logstash_active:
                     _file_infos = triageutils.get_file_informations(filepath=_f)
                     _analytics = triageutils.generate_analytics(logger=self.logger)
-                    _analytics["log"]["file"]["eventcount"] = _res.get("nb_events_read", 0)
-                    _analytics["log"]["file"]["eventsent"] = _res.get("nb_events_sent", 0)
+                    _analytics["log"]["file"]["eventcount"] = _res.get(
+                        "nb_events_read", 0
+                    )
+                    _analytics["log"]["file"]["eventsent"] = _res.get(
+                        "nb_events_sent", 0
+                    )
                     _analytics["log"]["file"]["path"] = str(_f)
                     _analytics["log"]["file"]["size"] = _file_infos.get("fileSize", 0)
-                    _analytics["log"]["file"]["lastaccessed"] = _file_infos.get("lastAccessTime", 0)
-                    _analytics["log"]["file"]["creation"] = _file_infos.get("creationTime", 0)
+                    _analytics["log"]["file"]["lastaccessed"] = _file_infos.get(
+                        "lastAccessTime", 0
+                    )
+                    _analytics["log"]["file"]["creation"] = _file_infos.get(
+                        "creationTime", 0
+                    )
                     _analytics["csirt"]["client"] = self.clientname
                     _analytics["csirt"]["hostname"] = self.hostname
                     _analytics["csirt"]["application"] = "generaptor_parse_evtx"
@@ -742,7 +750,7 @@ class Plugin(BasePlugin):
                 )
                 _analyzer.analyze()
             else:
-                self.logger.error(f"[generaptor_parse_mft] No $MFT found")
+                self.error(f"[generaptor_parse_mft] No $MFT found")
         except Exception as ex:
             self.error(f"[generaptor_parse_mft] {str(ex)}")
             raise ex
@@ -765,7 +773,7 @@ class Plugin(BasePlugin):
                 )
                 _analyzer.analyze()
             else:
-                self.logger.error(f"[generaptor_parse_usnjrnl] No $UsnJrnl%3A$J found")
+                self.error(f"[generaptor_parse_usnjrnl] No $UsnJrnl%3A$J found")
         except Exception as ex:
             self.error(f"[generaptor_parse_usnjrnl] {str(ex)}")
             raise ex
@@ -864,16 +872,17 @@ class Plugin(BasePlugin):
             ):
                 self.info(f"[generaptor_get_consolehost_history] Parse: {_f}")
                 try:
-                    _username = _f.parts[_f.parts.index('Users')+1]
+                    _username = _f.parts[_f.parts.index("Users") + 1]
                 except Exception as errorname:
                     self.error(f"{errorname}")
                     _username = time.time()
                 _dst = self.psreadline_dir / Path(f"{_username}")
-                triageutils.copy_file(src=_f, dst=_dst, overwrite=True, logger=self.logger)
+                triageutils.copy_file(
+                    src=_f, dst=_dst, overwrite=True, logger=self.logger
+                )
         except Exception as ex:
             self.error(f"[generaptor_get_consolehost_history] {str(ex)}")
             raise ex
-
 
     @triageutils.LOG
     def run(self, logger: Logger):
@@ -898,10 +907,10 @@ class Plugin(BasePlugin):
                 if self.is_logstash_active:
                     self.ymlcreator(logger=self.logger)
                     self.check_docker_image(
-                            image_name=self.docker_images["filebeat"]["image"],
-                            tag=self.docker_images["filebeat"]["tag"],
-                            logger=self.logger,
-                        )
+                        image_name=self.docker_images["filebeat"]["image"],
+                        tag=self.docker_images["filebeat"]["tag"],
+                        logger=self.logger,
+                    )
                     self.generaptor_filebeat(logger=self.logger)
                 if self.config["run"]["generaptor"]["timeline"]:
                     self.info("[generaptor] Run PLASO")

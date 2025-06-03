@@ -22,17 +22,23 @@ class Plugin(BasePlugin):
                 )
             )
             if _evtx_folder:
-                self.hayabusa_dir = _evtx_folder.parent
+                self.evtx_dir = _evtx_folder.parent
+                self.hayabusa_dir = Path(
+                    os.path.join(self.upload_dir, self.hostname, "Hayabusa")
+                )
+                triageutils.create_directory_path(
+                    path=self.hayabusa_dir, logger=self.logger
+                )
             else:
                 self.error("[HAYABUSA] No evtx folder")
                 raise Exception("[HAYABUSA] No evtx folder")
-            self.output_json = f"{os.path.join(self.hayabusa_dir,self.clientname)}_HAYABUSA_SIGMA.jsonl"
+            self.output_json = f"{self.hayabusa_dir}/HAYABUSA_SIGMA.jsonl"
         except Exception as ex:
             self.error(f"[init] {ex}")
             raise ex
 
     @triageutils.LOG
-    def exec_hayabusa(self, log_folder=None, logger=None):
+    def exec_hayabusa(self, log_folder: Path, logger=None):
         """Exécution du binaire hayabusa sur un dossier
 
         Args:
@@ -41,8 +47,6 @@ class Plugin(BasePlugin):
 
         """
         try:
-            if not log_folder:
-                log_folder = self.hayabusa_dir
             cmd = [
                 self.hayabusa_bin_path,
                 "json-timeline",
@@ -142,8 +146,12 @@ class Plugin(BasePlugin):
                 _analytics["log"]["file"]["eventsent"] = event_sent
                 _analytics["log"]["file"]["path"] = self.output_json.name
                 _analytics["log"]["file"]["size"] = _file_infos.get("fileSize", 0)
-                _analytics["log"]["file"]["lastaccessed"] = _file_infos.get("lastAccessTime", 0)
-                _analytics["log"]["file"]["creation"] = _file_infos.get("creationTime", 0)
+                _analytics["log"]["file"]["lastaccessed"] = _file_infos.get(
+                    "lastAccessTime", 0
+                )
+                _analytics["log"]["file"]["creation"] = _file_infos.get(
+                    "creationTime", 0
+                )
                 _analytics["csirt"]["client"] = self.clientname
                 _analytics["csirt"]["hostname"] = self.hostname
                 _analytics["csirt"]["application"] = "hayabusa"
@@ -167,7 +175,7 @@ class Plugin(BasePlugin):
 
         """
         try:
-            self.exec_hayabusa(logger=self.logger)
+            self.exec_hayabusa(log_folder=self.evtx_dir, logger=self.logger)
             if self.is_logstash_active:
                 _event_sent = self.send_to_elk(logger=self.logger)
                 self.send_analytics_to_elk(event_sent=_event_sent, logger=self.logger)

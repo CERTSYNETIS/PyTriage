@@ -657,10 +657,6 @@ function getlogs(id) {
       if(!$("#run_generaptor_private_key_secret").val()){$("#run_generaptor_private_key_secret").addClass('is-invalid');}
       else{$("#run_generaptor_private_key_secret").removeClass('is-invalid');}
       break;
-    case "orc":
-      ret &= $("#run_orc_certfile").val() ? true : false;
-      if(!$("#run_orc_certfile").val()){$("#run_orc_certfile").addClass('is-invalid');}
-      break;
    }
     return ret;
   }

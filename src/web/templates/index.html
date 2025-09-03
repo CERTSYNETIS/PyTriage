@@ -66,6 +66,7 @@
                 <option value="adtimeline">ADTimeline</option>
                 <option value="adaudit">ADAudit</option>
                 <option value="volatility">Volatility</option>
+                <option value="google">Google Workspace</option>
               </select>
             </div>
 
@@ -254,6 +255,19 @@
                   />
                   <label class="form-check-label" for="run_windows_psreadline"
                     >Powershell history file</label
+                  >
+                </li>
+                <li class="list-group-item generaptor_sub_modules kape_sub_modules">
+                  <input
+                    id="run_windows_rdpcache"
+                    name="windows_rdpcache"
+                    class="form-check-input me-1 generaptor_sub_modules kape_sub_modules"
+                    type="checkbox"
+                    value=""
+                    checked
+                  />
+                  <label class="form-check-label" for="run_windows_rdpcache"
+                    >RDP Cache</label
                   >
                 </li>
                 <li class="list-group-item generaptor_sub_modules">
@@ -508,6 +522,13 @@
                 style="display: none;"
                 >?</span>
                 <span
+                class="badge rounded-pill text-bg-light google_plugin"
+                data-bs-toggle="tooltip"
+                data-bs-placement="right"
+                data-bs-title="Expected Google Workspace generated ZIP archive"
+                style="display: none;"
+                >?</span>
+                <span
                 class="badge rounded-pill text-bg-light volatility_plugin"
                 data-bs-toggle="tooltip"
                 data-bs-placement="right"
@@ -692,16 +713,14 @@
         style="text-align: center"
       >
         <h5 class="card-title">Collectes en cours de traitement</h5>
-        <div id="running_collecte_div" class="card-body"></div>
+        <div id="running_collecte_div" class="card-body row">
+        </div>
       </div>
     </div>
   </div>
 </div>
 {% endblock %}
 
-{% block all_logs %}
-
-{% endblock %}
 
 {% block script %}
 <script>
@@ -719,7 +738,7 @@
       (tooltipTriggerEl) => new bootstrap.Tooltip(tooltipTriggerEl)
     );
     
-    const PLUGINS = ["kape", "uac", "hayabusa", "adtimeline", "volatility", "o365", "adaudit", "generaptor", "orc", "mail"];
+    const PLUGINS = ["kape", "uac", "hayabusa", "adtimeline", "volatility", "o365", "adaudit", "generaptor", "orc", "mail", "google"];
     
     display_plugin_options("generaptor");
     $('#run_generaptor_linux').prop("checked", false);
@@ -789,8 +808,9 @@
         success: function (res) {
           if (res) {
             var txt = "";
-            txt = "Id de triage: " + res.uuid + "<br>";
-            generate_toast("id_triage", txt);
+            //txt = "Id de triage: " + res.uuid + "<br>";
+            txt = '<a target="_blank" href="/collecte/'+ res.uuid + '" class="btn btn-outline-primary btn-sm">View details</a>';
+            generate_toast("id_triage_"+res.uuid, txt);
             $(".custom-file-label").html("");
             if (res.error.length == 0) {
               $("#archive").val(null);
@@ -932,8 +952,8 @@
               generate_toast("error_" + i, err, "text-bg-danger");
             }
           }
-          txt = "Id de triage: " + res.uuid + "<br>";
-          generate_toast("id_triage", txt);
+          txt = '<a target="_blank" href="/collecte/'+ res.uuid + '" class="btn btn-outline-primary btn-sm">View details</a>';
+          generate_toast("id_triage_"+res.uuid, txt);
           $(".custom-file-label").html("");
           start_process(res);
         }
@@ -956,3 +976,4 @@
   setInterval(getRunningCollectes, 60000);
 </script>
 {% endblock %}
+

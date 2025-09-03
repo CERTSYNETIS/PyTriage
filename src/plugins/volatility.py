@@ -1,7 +1,7 @@
 import os
 import json
 from src.thirdparty import triageutils as triageutils
-from src import BasePlugin
+from src import BasePlugin, Status
 import docker
 
 
@@ -21,7 +21,7 @@ class Plugin(BasePlugin):
     @triageutils.LOG
     def check_docker_image(
         self,
-        image_name="dockerhub.cert.lan/volatility3",
+        image_name="volatility3",
         tag="2.5.0",
         logger=None,
     ):
@@ -127,31 +127,96 @@ class Plugin(BasePlugin):
 
         """
         try:
+            self.update_workflow_status(
+                plugin="volatility", module="plugin", status=Status.STARTED
+            )
             self.check_docker_image(
                 image_name=self.docker_images["volatility3"]["image"],
                 tag=self.docker_images["volatility3"]["tag"],
                 logger=self.logger,
             )
-            if self.config["run"]["volatility"]["pslist"]:
-                res_file = self.volatility_plugin(
-                    plugin_name="windows.pslist", logger=self.logger
+            try:
+                self.update_workflow_status(
+                    plugin="volatility", module="pslist", status=Status.STARTED
                 )
-                self.volatility_send_results(result_file=res_file, logger=self.logger)
-            if self.config["run"]["volatility"]["pstree"]:
-                res_file = self.volatility_plugin(
-                    plugin_name="windows.pstree", logger=self.logger
+                if self.config["run"]["volatility"]["pslist"]:
+                    res_file = self.volatility_plugin(
+                        plugin_name="windows.pslist", logger=self.logger
+                    )
+                    self.volatility_send_results(
+                        result_file=res_file, logger=self.logger
+                    )
+                self.update_workflow_status(
+                    plugin="volatility", module="pslist", status=Status.FINISHED
                 )
-                self.volatility_send_results(result_file=res_file, logger=self.logger)
-            if self.config["run"]["volatility"]["netscan"]:
-                res_file = self.volatility_plugin(
-                    plugin_name="windows.netscan", logger=self.logger
+            except Exception as ex:
+                self.error(f"[volatility ERROR] {str(ex)}")
+                self.update_workflow_status(
+                    plugin="volatility", module="pslist", status=Status.ERROR
                 )
-                self.volatility_send_results(result_file=res_file, logger=self.logger)
-            if self.config["run"]["volatility"]["netstat"]:
-                res_file = self.volatility_plugin(
-                    plugin_name="windows.netstat", logger=self.logger
+            try:
+                self.update_workflow_status(
+                    plugin="volatility", module="pstree", status=Status.STARTED
                 )
-                self.volatility_send_results(result_file=res_file, logger=self.logger)
+                if self.config["run"]["volatility"]["pstree"]:
+                    res_file = self.volatility_plugin(
+                        plugin_name="windows.pstree", logger=self.logger
+                    )
+                    self.volatility_send_results(
+                        result_file=res_file, logger=self.logger
+                    )
+                self.update_workflow_status(
+                    plugin="volatility", module="pstree", status=Status.FINISHED
+                )
+            except Exception as ex:
+                self.error(f"[volatility ERROR] {str(ex)}")
+                self.update_workflow_status(
+                    plugin="volatility", module="pstree", status=Status.ERROR
+                )
+            try:
+                self.update_workflow_status(
+                    plugin="volatility", module="netscan", status=Status.STARTED
+                )
+                if self.config["run"]["volatility"]["netscan"]:
+                    res_file = self.volatility_plugin(
+                        plugin_name="windows.netscan", logger=self.logger
+                    )
+                    self.volatility_send_results(
+                        result_file=res_file, logger=self.logger
+                    )
+                self.update_workflow_status(
+                    plugin="volatility", module="netscan", status=Status.FINISHED
+                )
+            except Exception as ex:
+                self.error(f"[volatility ERROR] {str(ex)}")
+                self.update_workflow_status(
+                    plugin="volatility", module="netscan", status=Status.ERROR
+                )
+            try:
+                self.update_workflow_status(
+                    plugin="volatility", module="netstat", status=Status.STARTED
+                )
+                if self.config["run"]["volatility"]["netstat"]:
+                    res_file = self.volatility_plugin(
+                        plugin_name="windows.netstat", logger=self.logger
+                    )
+                    self.volatility_send_results(
+                        result_file=res_file, logger=self.logger
+                    )
+                self.update_workflow_status(
+                    plugin="volatility", module="netstat", status=Status.FINISHED
+                )
+            except Exception as ex:
+                self.error(f"[volatility ERROR] {str(ex)}")
+                self.update_workflow_status(
+                    plugin="volatility", module="netstat", status=Status.ERROR
+                )
+            self.update_workflow_status(
+                plugin="volatility", module="plugin", status=Status.FINISHED
+            )
         except Exception as ex:
             self.error(f"[volatility] run {str(ex)}")
+            self.update_workflow_status(
+                plugin="volatility", module="plugin", status=Status.ERROR
+            )
             raise ex

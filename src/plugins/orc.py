@@ -9,7 +9,7 @@ from src.thirdparty.ParsePrefetch import ParsePrefetch
 from src.thirdparty.ParseMFT.mft_analyzer import MftAnalyzer
 from logging import Logger
 from pathlib import Path
-from src import BasePlugin
+from src import BasePlugin, Status
 
 
 class Plugin(BasePlugin):
@@ -33,11 +33,7 @@ class Plugin(BasePlugin):
         triageutils.create_directory_path(path=self.zip_destination, logger=self.logger)
 
         self.config["general"]["extracted_zip"] = f"{self.zip_destination}"
-        _updt = triageutils.update_config_file(
-            data=self.config,
-            conf_file=f'{self.config["general"]["extract"]}/config.yaml',
-            logger=self.logger,
-        )
+        self.update_config_file(data=self.config)
 
         self.parsed_share = Path(os.path.join(self.orc_dir, "pytriage_parsed_files"))
         triageutils.create_directory_path(path=self.parsed_share, logger=self.logger)
@@ -77,13 +73,15 @@ class Plugin(BasePlugin):
         _docker.close()
 
     @triageutils.LOG
-    def rename_orc_file(self, filepath: Path, logger: Logger, LOGLEVEL: str ="NOLOG"):
+    def rename_orc_file(
+        self, filepath: Path, logger: Logger, LOGLEVEL: str = "NOLOG"
+    ) -> bool:
         """
         Rename file by keeping only real file name
         logger and LOGLEVEL are used by LOG decorator
 
-        return:
-            Path: file's new path
+        Return:
+            bool: true/false if success rename or not
         """
         try:
             _new_name = filepath.name
@@ -100,17 +98,17 @@ class Plugin(BasePlugin):
             _new_path = Path(_path) / Path(_new_name)
 
             if triageutils.file_exists(file=_new_path, LOGLEVEL="NOLOG"):
-                #self.info(f"[rename_orc_file] File exists !")
+                # self.info(f"[rename_orc_file] File exists !")
                 _parent = Path(_path) / Path(str(round(time.time() * 1000)))
                 triageutils.create_directory_path(path=_parent, LOGLEVEL="NOLOG")
                 _new_path = _parent / Path(_new_name).name
             triageutils.move_file(
                 src=filepath, dst=_new_path, logger=self.logger, LOGLEVEL="NOLOG"
             )
-            return _new_path
+            return True
         except Exception as ex:
             self.error(f"[rename_orc_file] {ex}")
-            return ""
+            return False
 
     @triageutils.LOG
     def extract_orc_archive(self, archive: Path, dest: Path, logger: Logger):
@@ -140,7 +138,6 @@ class Plugin(BasePlugin):
     @triageutils.LOG
     def extract_all_7z(self, logger: Logger):
         try:
-            records = list()
             for _7z in triageutils.search_files_by_extension_generator(
                 src=self.zip_destination, extension=".7z", logger=self.logger
             ):
@@ -153,11 +150,11 @@ class Plugin(BasePlugin):
             for _file in triageutils.search_files_by_extension_generator(
                 src=self.orc_dir, extension=".data", logger=self.logger
             ):
-                records.append(self.rename_orc_file(filepath=_file, logger=self.logger, LOGLEVEL="NOLOG"))
-            return records
+                self.rename_orc_file(
+                    filepath=_file, logger=self.logger, LOGLEVEL="NOLOG"
+                )
         except Exception as ex:
             self.error(f"[extract_all_7z] {str(ex)}")
-            return records
 
     @triageutils.LOG
     def get_evtx(self, evtx_folder: Path, logger: Logger) -> list:
@@ -379,65 +376,143 @@ class Plugin(BasePlugin):
 
         """
         try:
+            self.update_workflow_status(
+                plugin="orc", module="plugin", status=Status.STARTED
+            )
             self.extract_orc_archive(
                 archive=self.input_archive,
                 dest=self.zip_destination,
                 logger=self.logger,
             )
             self.extract_all_7z(logger=self.logger)
-            if self.config["run"]["orc"]["evtx"]:
+            if self.config["run"]["orc"].setdefault("evtx", False):
                 try:
                     self.info("[orc] Run EVTX")
+                    self.update_workflow_status(
+                        plugin="orc", module="evtx", status=Status.STARTED
+                    )
                     _evtxfolder = self.orc_dir / Path("Event")
                     _evtx_files = self.get_evtx(
                         evtx_folder=_evtxfolder, logger=self.logger
                     )
-                    if self.config["run"]["orc"]["winlogbeat"]:
+                    if self.config["run"]["orc"].setdefault("winlogbeat", False):
+                        self.update_workflow_status(
+                            plugin="orc", module="winlogbeat", status=Status.STARTED
+                        )
                         if self.is_winlogbeat_active:
                             self.send_logs_to_winlogbeat(
                                 evtx_logs=_evtx_files, logger=self.logger
                             )
+                        self.update_workflow_status(
+                            plugin="orc", module="winlogbeat", status=Status.FINISHED
+                        )
                     else:
                         self.orc_parse_evtx(evtx_logs=_evtx_files, logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="orc", module="evtx", status=Status.FINISHED
+                    )
                 except Exception as ex:
                     self.error(f"[Orc ERROR] {str(ex)}")
-            if self.config["run"]["orc"]["registry"]:
+                    self.update_workflow_status(
+                        plugin="orc", module="evtx", status=Status.ERROR
+                    )
+            if self.config["run"]["orc"].setdefault("registry", False):
                 try:
                     self.info("[orc] Run Registry")
+                    self.update_workflow_status(
+                        plugin="orc", module="registry", status=Status.STARTED
+                    )
                     self.orc_parse_registry(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="orc", module="registry", status=Status.FINISHED
+                    )
                 except Exception as ex:
                     self.error(f"[Orc ERROR] {str(ex)}")
-            if self.config["run"]["orc"]["mft"]:
+                    self.update_workflow_status(
+                        plugin="orc", module="registry", status=Status.ERROR
+                    )
+            if self.config["run"]["orc"].setdefault("mft", False):
                 try:
                     self.info("[orc] Run MFT")
+                    self.update_workflow_status(
+                        plugin="orc", module="mft", status=Status.STARTED
+                    )
                     self.orc_parse_mft(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="orc", module="mft", status=Status.FINISHED
+                    )
                 except Exception as ex:
                     self.error(f"[Orc ERROR] {str(ex)}")
-            if self.config["run"]["orc"]["usnjrnl"]:
+                    self.update_workflow_status(
+                        plugin="orc", module="registry", status=Status.ERROR
+                    )
+            if self.config["run"]["orc"].setdefault("usnjrnl", False):
                 try:
                     self.info("[orc] Run UsnJrnl")
+                    self.update_workflow_status(
+                        plugin="orc", module="usnjrnl", status=Status.STARTED
+                    )
                     self.process_USN(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="orc", module="usnjrnl", status=Status.FINISHED
+                    )
                 except Exception as ex:
                     self.error(f"[Orc ERROR] {str(ex)}")
-            if self.config["run"]["orc"]["prefetch"]:
+                    self.update_workflow_status(
+                        plugin="orc", module="usnjrnl", status=Status.ERROR
+                    )
+            if self.config["run"]["orc"].setdefault("prefetch", False):
                 try:
                     self.info("[orc] Run Prefetch")
+                    self.update_workflow_status(
+                        plugin="orc", module="prefetch", status=Status.STARTED
+                    )
                     self.orc_parse_prefetch(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="orc", module="prefetch", status=Status.FINISHED
+                    )
                 except Exception as ex:
                     self.error(f"[Orc ERROR] {str(ex)}")
-            if self.config["run"]["orc"]["mplog"]:
+                    self.update_workflow_status(
+                        plugin="orc", module="prefetch", status=Status.ERROR
+                    )
+            if self.config["run"]["orc"].setdefault("mplog", False):
                 self.info("[orc] Run MPLog -- NOT DONE YET")
-            if self.config["run"]["orc"]["iis"]:
-                self.info("[orc] Run IIS -- NOT DONE YET")
-            if self.config["run"]["orc"]["timeline"]:
-                self.info("[orc] Run PLASO")
-                self.check_docker_image(
-                    image_name=self.docker_images["plaso"]["image"],
-                    tag=self.docker_images["plaso"]["tag"],
-                    logger=self.logger,
+                self.update_workflow_status(
+                    plugin="orc", module="mplog", status=Status.FINISHED
                 )
-                self.generate_plaso_timeline(logger=self.logger)
+            if self.config["run"]["orc"].setdefault("iis", False):
+                self.info("[orc] Run IIS -- NOT DONE YET")
+                self.update_workflow_status(
+                    plugin="orc", module="iis", status=Status.FINISHED
+                )
+            if self.config["run"]["orc"].setdefault("timeline", False):
+                try:
+                    self.info("[orc] Run PLASO")
+                    self.update_workflow_status(
+                        plugin="orc", module="timeline", status=Status.STARTED
+                    )
+                    self.check_docker_image(
+                        image_name=self.docker_images["plaso"]["image"],
+                        tag=self.docker_images["plaso"]["tag"],
+                        logger=self.logger,
+                    )
+                    self.generate_plaso_timeline(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="orc", module="timeline", status=Status.FINISHED
+                    )
+                except Exception as ex:
+                    self.error(f"[Orc ERROR] {str(ex)}")
+                    self.update_workflow_status(
+                        plugin="orc", module="timeline", status=Status.ERROR
+                    )
+            self.update_workflow_status(
+                plugin="orc", module="plugin", status=Status.FINISHED
+            )
         except Exception as ex:
+            self.update_workflow_status(
+                plugin="orc", module="plugin", status=Status.ERROR
+            )
             self.error(f"[orc ERROR] {str(ex)}")
             self.info("Exception so kill my running containers")
             self.kill_docker_container(logger=self.logger)

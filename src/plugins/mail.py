@@ -4,7 +4,7 @@ from pathlib import Path
 from src.thirdparty import triageutils as triageutils
 from src.thirdparty.mail.pst_parser import PSTParser
 from src.thirdparty.mail.mbox_parser import MBOXParser
-from src import BasePlugin
+from src import BasePlugin, Status
 from logging import Logger
 
 
@@ -46,11 +46,7 @@ class Plugin(BasePlugin):
         triageutils.create_directory_path(path=self.pst_share, logger=self.logger)
 
         self.config["general"]["extracted_zip"] = str(self.zip_destination)
-        _updt = triageutils.update_config_file(
-            data=self.config,
-            conf_file=f'{self.config["general"]["extract"]}/config.yaml',
-            logger=self.logger,
-        )
+        self.update_config_file(data=self.config)
 
     @triageutils.LOG
     def mail_extract_archive(self, archive: Path, dest: Path, logger: Logger):
@@ -132,6 +128,13 @@ class Plugin(BasePlugin):
 
         """
         try:
+            self.update_workflow_status(
+                plugin="mail", module="plugin", status=Status.STARTED
+            )
+            if self.config["run"]["mail"]["attachments"]:
+                self.update_workflow_status(
+                    plugin="mail", module="attachments", status=Status.STARTED
+                )
             extrafields = dict()
             extrafields["csirt"] = dict()
             extrafields["csirt"]["client"] = self.clientname.lower()
@@ -142,6 +145,20 @@ class Plugin(BasePlugin):
             )
             self.analyze_mbox(logger=self.logger, extrafields=extrafields)
             self.analyze_pst(logger=self.logger, extrafields=extrafields)
+            self.update_workflow_status(
+                plugin="mail", module="plugin", status=Status.FINISHED
+            )
+            if self.config["run"]["mail"]["attachments"]:
+                self.update_workflow_status(
+                    plugin="mail", module="attachments", status=Status.FINISHED
+                )
         except Exception as ex:
             self.logger.error(f"[MAIL] run {str(ex)}")
+            self.update_workflow_status(
+                plugin="mail", module="plugin", status=Status.ERROR
+            )
+            if self.config["run"]["mail"]["attachments"]:
+                self.update_workflow_status(
+                    plugin="mail", module="attachments", status=Status.ERROR
+                )
             raise ex

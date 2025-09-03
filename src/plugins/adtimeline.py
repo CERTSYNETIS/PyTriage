@@ -1,8 +1,6 @@
 import os
-import json
-import asyncio
 from src.thirdparty import triageutils as triageutils
-from src import BasePlugin
+from src import BasePlugin, Status
 
 
 class Plugin(BasePlugin):
@@ -54,6 +52,7 @@ class Plugin(BasePlugin):
 
         """
         try:
+            self.update_workflow_status(plugin="adtimeline", status=Status.STARTED)
             extrafields = dict()
             extrafields["csirt"] = dict()
             extrafields["csirt"]["client"] = self.clientname.lower()
@@ -66,6 +65,8 @@ class Plugin(BasePlugin):
                 logger=self.logger,
             )
             self.send_to_elk(json_data=res, logger=self.logger)
+            self.update_workflow_status(plugin="adtimeline", status=Status.FINISHED)
         except Exception as ex:
             self.error(f"[ADTimeline] run {str(ex)}")
+            self.update_workflow_status(plugin="adtimeline", status=Status.ERROR)
             raise ex

@@ -16,6 +16,7 @@ pipelines:
   filebeat: 5058
   selfassessment: 5050
   mail: 5061
+  google: 5051
 
 administration:
   Timesketch:

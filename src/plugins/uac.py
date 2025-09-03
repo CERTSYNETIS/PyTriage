@@ -1,7 +1,7 @@
 import os
 import docker
 from src.thirdparty import triageutils as triageutils
-from src import BasePlugin
+from src import BasePlugin, Status
 import yaml
 
 
@@ -18,11 +18,7 @@ class Plugin(BasePlugin):
         self.tar_destination = os.path.join(self.uac_dir, "extract")
         triageutils.create_directory_path(path=self.tar_destination, logger=self.logger)
         self.config["general"]["extracted_zip"] = f"{self.tar_destination}"
-        _updt = triageutils.update_config_file(
-            data=self.config,
-            conf_file=f'{self.config["general"]["extract"]}/config.yaml',
-            logger=self.logger,
-        )
+        self.update_config_file(data=self.config)
 
         self.plaso_dir = os.path.join(self.uac_dir, "plaso")
         triageutils.create_directory_path(path=self.plaso_dir, logger=self.logger)
@@ -301,27 +297,61 @@ class Plugin(BasePlugin):
 
         """
         try:
+            self.update_workflow_status(
+                plugin="uac", module="plugin", status=Status.STARTED
+            )
             self.extract_archive(
                 archive=self.tar_file, dest=self.tar_destination, logger=self.logger
             )
 
-            if self.config["run"]["uac"]["filebeat"] and self.is_logstash_active:
-                self.uac_get_logs(logger=self.logger)
-                self.ymlcreator(logger=self.logger)
-                self.check_docker_image(
-                    image_name=self.docker_images["filebeat"]["image"],
-                    tag=self.docker_images["filebeat"]["tag"],
-                    logger=self.logger,
-                )
-                self.uac_filebeat(logger=self.logger)
+            if self.config["run"]["uac"]["filebeat"]:
+                try:
+                    if self.is_logstash_active:
+                        self.update_workflow_status(
+                            plugin="uac", module="filebeat", status=Status.STARTED
+                        )
+                        self.uac_get_logs(logger=self.logger)
+                        self.ymlcreator(logger=self.logger)
+                        self.check_docker_image(
+                            image_name=self.docker_images["filebeat"]["image"],
+                            tag=self.docker_images["filebeat"]["tag"],
+                            logger=self.logger,
+                        )
+                        self.uac_filebeat(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="uac", module="filebeat", status=Status.FINISHED
+                    )
+                except Exception as ex:
+                    self.error(f"[UAC ERROR] {ex}")
+                    self.update_workflow_status(
+                        plugin="uac", module="filebeat", status=Status.ERROR
+                    )
             if self.config["run"]["uac"]["timeline"]:
-                self.check_docker_image(
-                    image_name=self.docker_images["plaso"]["image"],
-                    tag=self.docker_images["plaso"]["tag"],
-                    logger=self.logger,
-                )
-                self.uac_generate_timeline(logger=self.logger)
+                try:
+                    self.update_workflow_status(
+                        plugin="uac", module="timeline", status=Status.STARTED
+                    )
+                    self.check_docker_image(
+                        image_name=self.docker_images["plaso"]["image"],
+                        tag=self.docker_images["plaso"]["tag"],
+                        logger=self.logger,
+                    )
+                    self.uac_generate_timeline(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="uac", module="timeline", status=Status.FINISHED
+                    )
+                except Exception as ex:
+                    self.error(f"[UAC ERROR] {ex}")
+                    self.update_workflow_status(
+                        plugin="uac", module="timeline", status=Status.ERROR
+                    )
+            self.update_workflow_status(
+                plugin="uac", module="plugin", status=Status.FINISHED
+            )
         except Exception as ex:
+            self.update_workflow_status(
+                plugin="uac", module="plugin", status=Status.ERROR
+            )
             self.error(f"[UAC] run {str(ex)}")
             self.info("Exception so kill my running containers")
             self.kill_docker_container(logger=self.logger)

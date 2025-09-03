@@ -165,7 +165,7 @@ function getlogs(id) {
     }
   }
 
-  function getCollecte(id) {
+  function old_getCollecte(id) {
     if (id) {
       $("#loading_div").show();
       var myOffcanvas = document.getElementById("offcanvasClient");
@@ -178,13 +178,33 @@ function getlogs(id) {
           $("#loading_div").hide();
           if (data) {
             populate_form(data);
-            getlogs(data.uuid);
+            //getlogs(data.uuid);
           }
         },
         error: function (data) {
           $("#loading_div").hide();
           if (data) {
             $("#logs").html(data); //replace(/\n/g, "<br>"));
+          }
+        },
+      });
+    }
+  }
+
+  function getCollecte(id) {
+    if (id) {
+      $.ajax({
+        type: "get",
+        url: "/get_collecte",
+        data: "id=" + id,
+        success: function (data) {
+          if (data) {
+            populate_plugins_infos(data);
+          }
+        },
+        error: function (data) {
+          if (data) {
+            generate_toast("get_col_error", data)
           }
         },
       });
@@ -288,9 +308,9 @@ function getlogs(id) {
         } else if (data.message) {
           generate_toast("queueing", data.message);
         } else if (data.uuid) {
-          getlogs(data.uuid);
+          //getlogs(data.uuid);
           get_collecte_status(data.task_id)
-          if (_myconfig)
+          if (typeof _myconfig !== "undefined")
           {
             _myconfig.task_id = data.task_id
             $("#collecte_task_value").html(_myconfig.task_id);
@@ -612,9 +632,9 @@ function getlogs(id) {
     text = "";
     for (let i = 0; i < data.running.length; i++) {
       text +=
-        '<h4 class="card-title">Client: ' + data.running[i].client + "</h4>";
+        '<div class="card col-3" style="margin: 10px 10px 10px 10px;"><h4 class="workflow_status_started">' + data.running[i].client + "</h4>";
       text +=
-        '<p class="card-text">Machine: ' + data.running[i].hostname + "</p>";
+        '<a target="_blank" href="/collecte/' + data.running[i].uuid + '">' + data.running[i].hostname + "</a></div>";
     }
     $("#running_collecte_div").html(text);
   }
@@ -684,21 +704,24 @@ function getlogs(id) {
 
   function populate_plugins_infos(data) {
     var text = "";
-    if (!data.general.client){return;}
+    if (typeof data.general == "undefined"){return;}
+    if (typeof data.general.client == "undefined"){return;}
     for (key in data.run) {
       if (typeof data.run[key] == "boolean") {
         _name = key;
         _executed = data.run[key];
+        _workflow_status = "off";
         if (_executed) {
+          if (typeof data.workflow !== "undefined") {_workflow_status = data.workflow[key].status;}
           _checked = data.run[key] ? "checked" : "";
           text +=
             '<div id="collecte_plugin_' +
             _name +
-            '_row" class="row"><pre id="collecte_plugin_name_' +
+            '_row" class="row"><div class="workflow_status_' + _workflow_status + ' col-1"></div><pre id="collecte_plugin_name_' +
             _name +
             '_title" class="col-3">' +
             _name +
-            '</pre><div class="form-check form-switch col-9"><input class="form-check-input" type="checkbox" role="switch" id="collecte_plugin_name_' +
+            '</pre><div class="form-check form-switch col-3"><input class="form-check-input" type="checkbox" role="switch" id="collecte_plugin_name_' +
             _name +
             '_chkbox" ' +
             _checked +
@@ -718,20 +741,22 @@ function getlogs(id) {
             key +
             '_title" class="col-3">Name</pre><pre id="collecte_plugin_name_' +
             key +
-            '_value"  class="col-9">' +
+            '_value"  class="col-3">' +
             key +
             "</pre></div>";
           for (subkey in data.run[key]) {
             if (!_excluded.includes(subkey)) {
+              _workflow_status = "off";
+              if (typeof data.workflow !== "undefined") {_workflow_status = data.workflow[key][subkey].status;}
               _checked = data.run[key][subkey] ? "checked" : "";
               text +=
                 '<div id="collecte_plugin_' +
                 subkey +
-                '_row" class="row"><pre id="collecte_plugin_name_' +
+                '_row" class="row"><div class="workflow_status_' + _workflow_status + ' col-1"></div><pre id="collecte_plugin_name_' +
                 subkey +
                 '_title" class="col-3">' +
                 subkey +
-                '</pre><div class="form-check form-switch col-9"><input class="form-check-input" type="checkbox" role="switch" id="collecte_plugin_name_' +
+                '</pre><div class="form-check form-switch col-3"><input class="form-check-input" type="checkbox" role="switch" id="collecte_plugin_name_' +
                 subkey +
                 '_chkbox" ' +
                 _checked +

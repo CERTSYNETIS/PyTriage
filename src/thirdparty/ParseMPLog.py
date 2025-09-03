@@ -57,16 +57,36 @@ class ParseMPLog:
         self._mplog_file: Path = mplog_file
         self._output_directory: Path = output_directory
         self._os_adapter: OsAdapter = OsAdapter()
-        self._mini_filter_unsuccessful_scan_status_pattern: str = r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*\[Mini-filter\] (Unsuccessful scan status): (.+) (Process): (.+), (Status): (.+), (State): (.+), (ScanRequest) (.+), (FileId): (.+), (Reason): (.+), (IoStatusBlockForNewFile): (.+), (DesiredAccess):(.+), (FileAttributes):(.+), (ScanAttributes):(.+), (AccessStateFlags):(.+), (BackingFileInfo): (.+)"
-        self._mini_filter_blocked_file_pattern: str = r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*\[Mini-filter\] (Blocked file): (.+) (Process): (.+), (Status): (.+), (State): (.+), (ScanRequest) (.+), (FileId): (.+), (Reason): (.+), (IoStatusBlockForNewFile): (.+), (DesiredAccess):(.+), (FileAttributes):(.+), (ScanAttributes):(.+), (AccessStateFlags):(.+), (BackingFileInfo): (.+)"
-        self._exclusion_list_pattern: str = r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}) (\[Exclusion\]) (.+) -> (.+)"
-        self._lowfi_pattern: str = r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*(lowfi): (.+)"
-        self._detection_add_pattern: str = r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*(DETECTION_ADD(?:#2)?) (.*)"
-        self._threat_command_line_pattern: str = r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*(threat): (.+)"
-        self._detection_event_pattern: str = r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*(DETECTIONEVENT MPSOURCE_SYSTEM) (.*)"
-        self._original_filename_pattern: str = r'([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*(original file name) "(.*)" (for) "(.*)", (hr)=(\w*)'
-        self._ems_pattern: str = r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*(process): (\w*) (pid): (\d*), (sigseq): (\w*), (sendMemoryScanReport): (\d*), (source): (\d*)"
-        self._process_image_name_pattern: str = r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}) (ProcessImageName): (.*), (Pid): (\d*), (TotalTime): (\d*), (Count): (\d*), (MaxTime): (\d*), (MaxTimeFile): (.*), (EstimatedImpact): (.*)"
+        self._mini_filter_unsuccessful_scan_status_pattern: str = (
+            r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*\[Mini-filter\] (Unsuccessful scan status): (.+) (Process): (.+), (Status): (.+), (State): (.+), (ScanRequest) (.+), (FileId): (.+), (Reason): (.+), (IoStatusBlockForNewFile): (.+), (DesiredAccess):(.+), (FileAttributes):(.+), (ScanAttributes):(.+), (AccessStateFlags):(.+), (BackingFileInfo): (.+)"
+        )
+        self._mini_filter_blocked_file_pattern: str = (
+            r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*\[Mini-filter\] (Blocked file): (.+) (Process): (.+), (Status): (.+), (State): (.+), (ScanRequest) (.+), (FileId): (.+), (Reason): (.+), (IoStatusBlockForNewFile): (.+), (DesiredAccess):(.+), (FileAttributes):(.+), (ScanAttributes):(.+), (AccessStateFlags):(.+), (BackingFileInfo): (.+)"
+        )
+        self._exclusion_list_pattern: str = (
+            r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}) (\[Exclusion\]) (.+) -> (.+)"
+        )
+        self._lowfi_pattern: str = (
+            r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*(lowfi): (.+)"
+        )
+        self._detection_add_pattern: str = (
+            r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*(DETECTION_ADD(?:#2)?) (.*)"
+        )
+        self._threat_command_line_pattern: str = (
+            r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*(threat): (.+)"
+        )
+        self._detection_event_pattern: str = (
+            r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*(DETECTIONEVENT MPSOURCE_SYSTEM) (.*)"
+        )
+        self._original_filename_pattern: str = (
+            r'([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*(original file name) "(.*)" (for) "(.*)", (hr)=(\w*)'
+        )
+        self._ems_pattern: str = (
+            r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}).*(process): (\w*) (pid): (\d*), (sigseq): (\w*), (sendMemoryScanReport): (\d*), (source): (\d*)"
+        )
+        self._process_image_name_pattern: str = (
+            r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}) (ProcessImageName): (.*), (Pid): (\d*), (TotalTime): (\d*), (Count): (\d*), (MaxTime): (\d*), (MaxTimeFile): (.*), (EstimatedImpact): (.*)"
+        )
         self._bm_telemetry_pattern: str = (
             r"BEGIN BM telemetry(?:.*\n)+?END BM telemetry"
         )

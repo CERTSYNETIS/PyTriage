@@ -4,7 +4,7 @@ services:
     build:
       context: ..
       dockerfile: Docker/Dockerfile
-    image: pytriage:x.x.x
+    image: pytriage:3.0.0
     container_name: pytriage
     volumes:
       - /data/hayabusa:/hayabusa
@@ -13,10 +13,18 @@ services:
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - USE_KEYCLOAK=False
+      - KEYCLOAK_SERVER_URL=
+      - KEYCLOAK_REALM=
+      - KEYCLOAK_CLIENT_ID=
+      - KEYCLOAK_CLIENT_SECRET=
+      - REDIRECT_URI=
+      - KEYCLOAK_ADMIN_GROUP=ADMIN
+      - KEYCLOAK_USERS_GROUP=CERT
     ports:
       - 443:8080
   worker:
-    image: pytriage:x.x.x
+    image: pytriage:3.0.0
     command: celery --app triage.celery worker --loglevel=info
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -39,5 +47,5 @@ services:
       - /winlogbeat:/winlogbeat
       - /var/run/docker.sock:/var/run/docker.sock
   redis:
-    image: dockerhub.cert.lan/redis:7.2.5
+    image: redis:7.2.5
 

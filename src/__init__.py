@@ -5,6 +5,15 @@ from logging import Logger
 from slugify import slugify
 from src.thirdparty import triageutils as triageutils
 from src.thirdparty.logging import get_logger
+from enum import Enum
+
+
+class Status(Enum):
+    PENDING = "pending"
+    STARTED = "started"
+    OFF = "off"
+    ERROR = "error"
+    FINISHED = "finished"
 
 
 class BasePlugin(object):
@@ -38,6 +47,7 @@ class BasePlugin(object):
         self.evtxparser_port = internal_config["pipelines"]["evtxparser"]
         self.volatility_port = internal_config["pipelines"]["volatility"]
         self.o365_port = internal_config["pipelines"]["o365"]
+        self.google_port = internal_config["pipelines"]["google"]
         self.mail_port = internal_config["pipelines"]["mail"]
         self.raw_json_port = internal_config["pipelines"]["fortinet"]
         self.adaudit_port = internal_config["pipelines"]["adaudit"]
@@ -93,3 +103,23 @@ class BasePlugin(object):
     def debug(self, msg):
         """Logs a message at DEBUG level"""
         self.logger.debug(msg)
+
+    def update_config_file(self, data: dict):
+        try:
+            triageutils.update_config_file(
+                data=data,
+                conf_file=f'{self.config["general"]["extract"]}/config.yaml',
+                logger=self.logger,
+            )
+        except Exception as ex:
+            self.logger.error(f"[update_config_file] {ex}")
+
+    def update_workflow_status(self, plugin: str, status: Enum, module: str = ""):
+        try:
+            if plugin in ["hayabusa", "adtimeline", "o365"]:
+                self.config["workflow"][plugin]["status"] = status.value
+            else:
+                self.config["workflow"][plugin][module]["status"] = status.value
+            self.update_config_file(data=self.config)
+        except Exception as ex:
+            self.logger.error(f"[update_workflow_status] {ex}")

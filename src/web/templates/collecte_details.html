@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block main_container %} 
+{% block main_container %}
 <div class="row">
   <div class="col-6">
     <div
@@ -56,10 +56,12 @@ Timesketch ID</pre
           >
         </div>
         <div id="collecte_logfile_row" class="row">
-          <pre id="collecte_logfile_title" class="col-3">Log File</pre>
+          <pre id="collecte_logfile_title" class="col-3">Log File <a id="download_collecte_log" href="/download_log_file?id={{config.log_file}}" data-bs-toggle="tooltip"
+              data-bs-placement="bottom"
+              data-bs-title="Download log file"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-down-circle" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0M8.5 4.5a.5.5 0 0 0-1 0v5.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293z"/></svg></a></pre>
           <pre id="collecte_logfile_value" class="col-9">
-{{config.log_file}}</pre
-          >
+{{config.log_file}}
+          </pre>
         </div>
         {% if config.uuid %}
         <div id="collecte_btn_row" class="row">
@@ -68,20 +70,21 @@ Timesketch ID</pre
               id="download_div"
               class=""
             >
-              <div id="download_btn_div" style="text-align: center"></div>
+              <div id="download_btn_div" style="text-align: center">
               <a
                 id="download_collecte_a"
                 class="btn btn-outline-primary my-2 my-sm-0"
                 href="/download?id={{config.uuid}}"
                 >Télécharger la collecte</a
               >
+              </div>
             </div>
           </div>
           <div class="col-6">
             <div
               id="download_results_div"
               class=""
-              style="text-align: right"
+              style="text-align: center"
             >
               <a
                 id="download_results_a"
@@ -103,7 +106,29 @@ Timesketch ID</pre
       class="my-3 p-3 bg-white rounded box-shadow card"
     >
       <div class="card-body">
-        <h5 class="card-title">Plugins executed</h5>
+        <h5 class="card-title">Plugins executed
+          <a
+            class=""
+            data-bs-toggle="popover"
+            data-bs-html="true"
+            data-bs-trigger="focus"
+            data-bs-custom-class="custom-popover"
+            data-bs-title="Workflow status"
+            data-bs-content="<div class='workflow_status_pending'> Pending</div><div class='workflow_status_off'> Off</div><div class='workflow_status_error'> Error</div><div class='workflow_status_finished'> Finished</div><div class='workflow_status_started'> Started</div>"
+            href="#"
+            >
+            <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width="16"
+            height="16"
+            fill="currentColor"
+            viewBox="0 0 512 512"
+            >
+              <path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM216 336l24 0 0-64-24 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l48 0c13.3 0 24 10.7 24 24l0 88 8 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-80 0c-13.3 0-24-10.7-24-24s10.7-24 24-24zm40-208a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"/>
+            </svg>
+            </a>
+        </h5>
+        
         <div id="collecte_plugins_div"></div>
       </div>
       <div class="card-body">
@@ -119,33 +144,6 @@ Timesketch ID</pre
 </div>
 {% endblock %}
 
-{% block all_logs %}
-<div
-      id="main_log_div"
-      class="container-fluid"
-      style="width: 100%; height: 100vh; overflow: auto"
-    >
-      <div class="my-3 p-3 bg-white rounded box-shadow card">
-        <div class="container-fluid border-bottom">
-          <div class="row row-cols-auto">
-            <div class="col">
-              <h5 id="logs_title" class="card-title">Logs</h5>
-            </div>
-          </div>
-          <div class="row">
-            <pre
-              id="logs"
-              class="media text-muted pt-3"
-              style="
-                font-family: SFMono-Regular, Menlo, Monaco, Consolas,
-                  'Liberation Mono', 'Courier New', monospace;
-              "
-            ></pre>
-          </div>
-        </div>
-      </div>
-</div>
-{% endblock %}
 
 {% block script %}
 <script>
@@ -164,7 +162,7 @@ Timesketch ID</pre
       (tooltipTriggerEl) => new bootstrap.Tooltip(tooltipTriggerEl)
     );
     getAllClients();
-    getlogs(_myconfig.uuid);
+    //getlogs(_myconfig.uuid);
     getMachineUsage();
     getRunningCollectes(mainpage=false, uuid=_myconfig.uuid)
     populate_plugins_infos(_myconfig);
@@ -210,8 +208,8 @@ Timesketch ID</pre
     return false;
   }); // Replay the form
   
-  setInterval(function(){getlogs(_myconfig.uuid)}, 30000);
-  //setInterval(function(){get_collecte_status(_myconfig.task_id)}, 30000);
+  //setInterval(function(){getlogs(_myconfig.uuid)}, 30000);
+  setInterval(function(){getCollecte(_myconfig.uuid)}, 30000);
   setInterval(function(){getRunningCollectes(mainpage=false, uuid=_myconfig.uuid)}, 30000);
   setInterval(getMachineUsage, 30000);
   setInterval(getAllClients, 60000);

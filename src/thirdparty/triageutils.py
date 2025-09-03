@@ -21,6 +21,7 @@ from timesketch_api_client import client
 from timesketch_import_client import importer
 from datetime import datetime
 from .orc_decrypt import decrypt_archive
+from .logging import get_logger
 
 magics = {
     ".gzip": [b"\x1f\x8b"],
@@ -33,7 +34,13 @@ magics = {
     ".rar": [b"\x52\x61\x72\x21\x1a\x07"],
 }
 
-LOGGER = None  # logging.getLogger("pytriage")
+
+def set_default_logger():
+    l = get_logger(name="default")
+    return l
+
+
+LOGGER = set_default_logger()
 
 
 def read_config(conf="") -> dict:
@@ -212,7 +219,9 @@ def copy_files(
 
 
 @LOG
-def delete_directory(src: str = "", LOGLEVEL: str = "INFO", logger=LOGGER) -> bool:
+def delete_directory(
+    src: str | Path = "", LOGLEVEL: str = "INFO", logger=LOGGER
+) -> bool:
     try:
         if directory_exists(dir=src, logger=logger):
             shutil.rmtree(src)
@@ -226,7 +235,7 @@ def delete_directory(src: str = "", LOGLEVEL: str = "INFO", logger=LOGGER) -> bo
 
 
 @LOG
-def delete_file(src: str = "", LOGLEVEL: str = "INFO", logger=LOGGER) -> bool:
+def delete_file(src: str | Path = "", LOGLEVEL: str = "INFO", logger=LOGGER) -> bool:
     try:
         if os.path.exists(src):
             os.remove(src)
@@ -593,7 +602,11 @@ def extract_gzip_archive(
 
 @LOG
 def extract_7z_archive(
-    archive: str | Path, dest: str | Path, password: str = "", LOGLEVEL: str = "INFO", logger=LOGGER
+    archive: str | Path,
+    dest: str | Path,
+    password: str = "",
+    LOGLEVEL: str = "INFO",
+    logger=LOGGER,
 ) -> bool:
     try:
         if not archive or not dest:
@@ -827,6 +840,7 @@ def send_data_to_elk(
         number of event sent (int)
     """
     try:
+        count = 0
         if not INTERNAL_CONFIG["administration"]["Logstash"]["active"]:
             raise Exception("Module Logstash not active")
         if not data or not ip or port == 0:
@@ -834,13 +848,14 @@ def send_data_to_elk(
             return None
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         logger.info("[send_data_to_elk] socket created")
+    except socket.error as err:
+        logger.error(f"socket error: {err}")
+        sock.close()
+        raise err
     except Exception as e:
-        if sock:
-            sock.close()
         logger.error(str(e))
         raise e
     try:
-        count = 0
         logger.info(f"[send_data_to_elk] Try to connect to : {ip}:{port}")
         sock.connect((ip, port))
         logger.info(f"[send_data_to_elk] socket connected to : {ip}:{port}")
@@ -857,13 +872,21 @@ def send_data_to_elk(
                         msg = f"{json.dumps(obj)}\n"
                         time.sleep(1 / 5000)
                         try:
-                            sock.send(msg.encode())
+                            sock.sendall(msg.encode())
                             count += 1
+                        except socket.error as err:
+                            if err.errno == 9:
+                                sock.close()
+                                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                                sock.connect((ip, port))
+                                sock.sendall(msg.encode())
+                                logger.error(
+                                    f"[send_data_to_elk] socket probably closed try reconnect"
+                                )
+                            else:
+                                logger.error(f"[send_data_to_elk] socket: {err}")
                         except Exception as ex:
-                            logger.error(f"[send_data_to_elk] {ex} -- try reconnect...")
-                            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                            sock.connect((ip, port))
-                            sock.send(msg.encode())
+                            logger.error(f"[send_data_to_elk] {ex}")
                         if not count % 1000:
                             logger.debug(
                                 f"[send_data_to_elk] Send part {count}/{total}"
@@ -884,13 +907,21 @@ def send_data_to_elk(
             msg = f"{json.dumps(data)}\n"
             time.sleep(1 / 5000)
             try:
-                sock.send(msg.encode())
+                sock.sendall(msg.encode())
                 count += 1
+            except socket.error as err:
+                if err.errno == 9:
+                    sock.close()
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.connect((ip, port))
+                    sock.sendall(msg.encode())
+                    logger.error(
+                        f"[send_data_to_elk] socket probably closed try reconnect"
+                    )
+                else:
+                    logger.error(f"[send_data_to_elk] socket: {err}")
             except Exception as ex:
-                logger.error(f"[send_data_to_elk] {ex} -- try reconnect...")
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.connect((ip, port))
-                sock.send(msg.encode())
+                logger.error(f"[send_data_to_elk] {ex}")
             logger.info("[send_data_to_elk] Data fully sent")
         sock.close()
     except Exception as e:
@@ -904,7 +935,7 @@ def send_data_to_elk(
 
 @LOG
 def send_jsonl_to_elk(
-    filepath: str,
+    filepath: str | Path,
     ip: str = "",
     port: int = 0,
     extrafields: dict = {},
@@ -931,6 +962,7 @@ def send_jsonl_to_elk(
         sock.connect((ip, port))
         logger.info(f"[send_jsonl_to_elk] socket connected to : {ip}:{port}")
         with open(filepath, "r") as jsonl_f:
+            _line_number = 1
             for line in jsonl_f:
                 try:
                     data = json.loads(line)
@@ -938,20 +970,34 @@ def send_jsonl_to_elk(
                     msg = f"{json.dumps(data)}\n"
                     time.sleep(1 / 5000)
                     try:
-                        sock.send(msg.encode())
+                        sock.sendall(msg.encode())
+                    except socket.error as err:
+                        if err.errno == 9:
+                            logger.error(
+                                f"[send_jsonl_to_elk] socket probably closed try reconnect"
+                            )
+                            sock.close()
+                            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                            sock.connect((ip, port))
+                            sock.sendall(msg.encode())
+                        else:
+                            logger.error(f"[send_jsonl_to_elk] socket: {err}")
                     except Exception as ex:
-                        logger.error(f"[send_jsonl_to_elk] {ex} -- try reconnect...")
-                        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        sock.connect((ip, port))
-                        sock.send(msg.encode())
+                        logger.error(f"[send_jsonl_to_elk] {ex}")
                 except Exception as ee:
-                    logger.error(f"[send_jsonl_to_elk 1] {ee}")
+                    logger.error(f"[send_jsonl_to_elk 1] {ee} | line #{_line_number}")
+                finally:
+                    _line_number += 1
+                    # sock.close()
             logger.info("[send_jsonl_to_elk] Data fully sent")
-        sock.close()
+            sock.close()
     except Exception as e:
         logger.error(f"[send_jsonl_to_elk] {str(e)}")
-        if sock:
-            sock.close()
+        try:
+            if sock:
+                sock.close()
+        except Exception as ex_sock:
+            logger.error(f"[send_jsonl_to_elk] {str(ex_sock)}")
         raise e
 
 
@@ -1342,7 +1388,7 @@ def generate_fortinet_filebeat_config(
 
 @LOG
 def update_config_file(
-    data: dict, conf_file: str, LOGLEVEL: str = "INFO", logger=LOGGER
+    data: dict, conf_file: str, LOGLEVEL: str = "NOLOG", logger=LOGGER
 ) -> bool:
     try:
         with open(conf_file, "w") as config_file:

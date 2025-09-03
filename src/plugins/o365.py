@@ -2,7 +2,7 @@ import os
 import json
 from pathlib import Path
 from src.thirdparty import triageutils as triageutils
-from src import BasePlugin
+from src import BasePlugin, Status
 
 
 class Plugin(BasePlugin):
@@ -15,6 +15,8 @@ class Plugin(BasePlugin):
         self.o365_dir = os.path.join(self.upload_dir, self.hostname, "o365")
         triageutils.create_directory_path(path=self.o365_dir, logger=self.logger)
         self.o365_archive = os.path.join(self.upload_dir, conf["archive"]["name"])
+        self.config["general"]["extracted_zip"] = f"{self.o365_dir}"
+        self.update_config_file(data=self.config)
 
     @triageutils.LOG
     def o365_extract_zip(self, archive=None, dest=None, specific_files=[], logger=None):
@@ -123,6 +125,7 @@ class Plugin(BasePlugin):
 
         """
         try:
+            self.update_workflow_status(plugin="o365", status=Status.STARTED)
             self.o365_extract_zip(
                 archive=self.o365_archive, dest=self.o365_dir, logger=self.logger
             )
@@ -138,7 +141,7 @@ class Plugin(BasePlugin):
                     _jsonl_file = Path(f"{os.path.splitext(f)[0]}.jsonl")
                     triageutils.csv_to_json(
                         csvFilePath=f,
-                        jsonFilePath=_jsonl_file,
+                        jsonFilePath=_jsonl_file.as_posix(),
                         delimiter=",",
                         writeToFile=True,
                         writeasjsonline=True,
@@ -154,7 +157,8 @@ class Plugin(BasePlugin):
                             f = _jsonl_file
                 self.info(f"[o365] send file {_count}/{_total}")
                 self.o365_send_json_results(json_file=f, logger=self.logger)
-
+            self.update_workflow_status(plugin="o365", status=Status.FINISHED)
         except Exception as ex:
             self.error(f"[o365] run {str(ex)}")
+            self.update_workflow_status(plugin="o365", status=Status.ERROR)
             raise ex

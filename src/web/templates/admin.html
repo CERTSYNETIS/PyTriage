@@ -49,6 +49,7 @@
           <caption> Liste des collectes</caption>
           <thead>
             <tr>
+              <th scope="col"></th>
               <th scope="col">UUID</th>
               <th scope="col">Client</th>
               <th scope="col">Hostname</th>
@@ -60,6 +61,9 @@
           </thead>
           <tbody id="tbody_collectes_infos"></tbody>
         </table>
+        <p>
+            <button class="btn btn-outline-danger btn-sm" id="table_selectedrows" onclick="getSelectedRows()">Delete selected collectes</button>
+        </p>
       </div>
       </div>
     </div>
@@ -339,7 +343,6 @@
 </div>
 {% endblock %}
 
-{% block all_logs %} {% endblock %}
 
 {% block script %}
 <script>
@@ -439,47 +442,54 @@
     uuid = "",
     client = "",
     hostname = "",
-    state = ""
+    state = "",
+    frombutton=true
   ) {
-    if (confirm("Are you sure you want to delete this collecte ?")) {
-      $("#loading_div").show();
-      const value = {
-        uuid: uuid,
-        client: client,
-        hostname: hostname,
-        state: state,
-      };
-      $.ajax({
-        type: "post",
-        url: "/admindeletecollecte",
-        data: JSON.stringify(value),
-        contentType: "application/json",
-        success: function (data) {
-          generate_toast(
-            "remove_collecte_" + uuid,
-            data.status
-          );
-        },
-        error: function (data) {
-          generate_toast(
-            "remove_collecte_" + uuid,
-            "Erreur lors de la suppression de la collecte",
-            "text-bg-danger"
-          );
-        },
-        complete: function (data) {
-          get_admin_collectes();
-          $("#loading_div").hide();
-        },
-      });
+    if(frombutton)
+    {
+      if (!confirm("Are you sure you want to delete this collecte ?")) {
+        return
+      }
     }
+    $("#loading_div").show();
+    const value = {
+      uuid: uuid,
+      client: client,
+      hostname: hostname,
+      state: state,
+    };
+    $.ajax({
+      type: "post",
+      url: "/admindeletecollecte",
+      data: JSON.stringify(value),
+      contentType: "application/json",
+      success: function (data) {
+        generate_toast(
+          "remove_collecte_" + uuid,
+          data.status
+        );
+      },
+      error: function (data) {
+        generate_toast(
+          "remove_collecte_" + uuid,
+          "Erreur lors de la suppression de la collecte",
+          "text-bg-danger"
+        );
+      },
+      complete: function (data) {
+        get_admin_collectes();
+        $("#loading_div").hide();
+      },
+    });
+    
   }
 
   function display_collectes_infos(collectes = {}) {
     var text = "";
     //admin row
     text += "<tr>";
-    text += '<th scope="row"></th>';
+    text += '<td></td>';
+    text += "<td></td>";
     text += "<td>Admin</td>";
     text += "<td></td>";
     text += "<td></td>";
@@ -489,11 +499,12 @@
       '<td><a id="download_collecte_log_admin" href="/download_log_file?id=admin.log"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-down-circle" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0M8.5 4.5a.5.5 0 0 0-1 0v5.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293z"/></svg></a></td>';
     text += "</tr>";
     for (const [key, value] of Object.entries(collectes)) {
-      text += "<tr>";
-      text += '<th scope="row"> <a target="_blank" href="/collecte/' + key + '"</a>' + key + "</th>";
+      text += '<tr id="'+ key +'">';
+      text += '<td></td>';
+      text += '<td> <a target="_blank" href="/collecte/' + key + '">' + key + "</a></td>";
       text += "<td>" + value["client"] + "</td>";
       text += "<td>" + value["hostname"] + "</td>";
-      text += "<td>" + value["mtime"] + "</td>";
+      text += "<td class='mtime_tooltip' data-bs-toggle='tooltip' data-bs-placement='bottom' data-bs-title='" + value["mtime"].split(" ")[1] + "'>" + value["mtime"].split(" ")[0] + "</td>";
       text += '<td><span class="badge text-bg-primary">' + value["state"] +"</span></td>";
       text +=
         '<td><span class="badge text-bg-light" id="remove_collecte_' +
@@ -506,7 +517,7 @@
         value["hostname"] +
         "',state='" +
         value["state"] +
-        '\')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash3" viewBox="0 0 16 16"><path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5M11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3A1.5 1.5 0 0 0 5 1.5v1H1.5a.5.5 0 0 0 0 1h.538l.853 10.66A2 2 0 0 0 4.885 16h6.23a2 2 0 0 0 1.994-1.84l.853-10.66h.538a.5.5 0 0 0 0-1zm1.958 1-.846 10.58a1 1 0 0 1-.997.92h-6.23a1 1 0 0 1-.997-.92L3.042 3.5zm-7.487 1a.5.5 0 0 1 .528.47l.5 8.5a.5.5 0 0 1-.998.06L5 5.03a.5.5 0 0 1 .47-.53Zm5.058 0a.5.5 0 0 1 .47.53l-.5 8.5a.5.5 0 1 1-.998-.06l.5-8.5a.5.5 0 0 1 .528-.47M8 4.5a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5"/></svg></span></td>';
+        ',frombutton=true\')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash3" viewBox="0 0 16 16"><path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5M11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3A1.5 1.5 0 0 0 5 1.5v1H1.5a.5.5 0 0 0 0 1h.538l.853 10.66A2 2 0 0 0 4.885 16h6.23a2 2 0 0 0 1.994-1.84l.853-10.66h.538a.5.5 0 0 0 0-1zm1.958 1-.846 10.58a1 1 0 0 1-.997.92h-6.23a1 1 0 0 1-.997-.92L3.042 3.5zm-7.487 1a.5.5 0 0 1 .528.47l.5 8.5a.5.5 0 0 1-.998.06L5 5.03a.5.5 0 0 1 .47-.53Zm5.058 0a.5.5 0 0 1 .47.53l-.5 8.5a.5.5 0 1 1-.998-.06l.5-8.5a.5.5 0 0 1 .528-.47M8 4.5a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5"/></svg></span></td>';
       text +=
         '<td><a id="download_collecte_log_' +
         key +
@@ -517,7 +528,40 @@
     }
     $("#table_collectes_infos").DataTable().destroy();
     $("#tbody_collectes_infos").html(text);
-    $("#table_collectes_infos").DataTable({order:[1, 'asc']}).draw();
+    $("#table_collectes_infos").DataTable({
+      columnDefs: [
+        {
+            render: DataTable.render.select(),
+            targets: 0
+        }
+    ],select: {
+        style: 'multi',
+    },order:[2, 'asc']}).draw();
+    $(".mtime_tooltip").tooltip();
+  }
+
+  function getSelectedRows() {
+    
+    var table = $('#table_collectes_infos').DataTable();
+    var r=table.rows( { selected: true } ).data();
+    if (r.length > 0){
+      if(confirm("Are you sure you want to delete these collectes ?")) 
+      {
+        for(i=0; i<r.length;i++)
+        {
+          remove_collecte(
+            uuid=r[i].DT_RowId,
+            client = "",
+            hostname = "",
+            state = "",
+            frombutton=false
+          );      
+        }
+      }
+    }
+    else{
+      generate_toast("error_delete_collectes", "Nothing to delete...");
+    }   
   }
 
   function getTSStatus() {

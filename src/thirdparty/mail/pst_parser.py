@@ -6,7 +6,7 @@ import hashlib
 from pathlib import Path
 from logging import Logger
 from datetime import datetime
-from ..triageutils import send_data_to_elk, delete_file, generate_analytics
+from ..triageutils import send_data_to_elk, delete_file, generate_analytics, file_exists
 
 
 class PSTParser:
@@ -36,12 +36,15 @@ class PSTParser:
         self.output_dir = output_dir
         self.is_logstash_active = is_logstash_active
         self._analytics = generate_analytics()
+        self._analytics["log"]["file"]["attachments"] = 0
 
-    def save_attachment(self, data: None, path: str = "", name: str = "") -> None:
+    def save_attachment(self, data, path: str = "", name: str = "") -> None:
         try:
             with open(os.path.join(path, name), "wb+") as out:
                 out.write(data)
-                self.debug(f"[PST][save_attachement] Successfully saved {str(name)}")
+                self.logger.debug(
+                    f"[PST][save_attachement] Successfully saved {str(name)}"
+                )
         except Exception as e:
             self.logger.error(
                 f"[PST][save_attachement] Failure on writing attachment {str(e)}"
@@ -59,12 +62,23 @@ class PSTParser:
             _res["folder"] = folder_name
             _res["subfolder"] = pff_folder.number_of_sub_folders
             _res["submessages"] = pff_folder.number_of_sub_messages
-            _res["messages"] = list()
+            _tmp_msgs = list()
             for msg in pff_folder.sub_messages:
                 try:
-                    _res["messages"].append(self.process_message(msg))
+                    _parsed_msg = self.process_message(msg)
+                    try:
+                        if self.is_logstash_active:
+                            _res["message"] = _parsed_msg
+                            self.send_to_elk(json_data=_res, extrafields=self.extrafields)
+                            self._analytics["log"]["file"]["eventsent"] += 1
+                            del _res["message"]
+                    except Exception as ex:
+                        self.logger.error(f"[process_message] send to elk: {ex}")
+                    _tmp_msgs.append(_parsed_msg)
                 except Exception as ex:
                     self.logger.error(f"[process_folder] msg: {ex}")
+            #Do not send big array to ELK but keep it in jsonl result file
+            _res["messages"] = _tmp_msgs
             try:
                 # Process folders within a folder
                 for folder in pff_folder.sub_folders:
@@ -75,7 +89,6 @@ class PSTParser:
                 )
             data_list.append(_res)
             return data_list
-
         except Exception as e:
             self.logger.error(f"[process_folders] {e}")
             return list()
@@ -158,7 +171,7 @@ class PSTParser:
                 try:
                     data_dict[attrib] = datetime.strptime(
                         date_string=str(getattr(msg, attrib, "")),
-                        format="%Y-%m-%d %H:%M:%S.%f",
+                        format="%d/%m/%Y %H:%M:%S"
                     )
                 except Exception as e:
                     data_dict[attrib] = str(getattr(msg, attrib, "N/A"))
@@ -261,6 +274,7 @@ class PSTParser:
             return header_data
         except Exception as e:
             self.logger.error(f"[process_headers] {e}")
+            return dict()
 
     def analytics(self):
         try:
@@ -290,20 +304,11 @@ class PSTParser:
                 content=parsed_data,
                 output_file=self.output_dir / Path(f"{self.pstfile.stem}.json"),
             )
-            if self.is_logstash_active:
-                for msg_data in parsed_data:
-                    msg_data.update(self.extrafields)
-                    try:
-                        self.send_to_elk(json_data=msg_data)
-                        self._analytics["log"]["file"]["eventsent"] += 1
-                    except Exception as ex:
-                        pass
             pff_obj.close()
         except Exception as e:
             self.logger.error(f"[run] {str(e)}")
 
-    def send_to_elk(self, json_data: list = [], extrafields: dict = {}):
-        """Fonction qui envoie les résultats d'un array vers ELK"""
+    def send_to_elk(self, json_data: dict, extrafields: dict = {}):
         try:
             ip = self.logstash_url
             if ip.startswith("http"):
@@ -320,7 +325,8 @@ class PSTParser:
 
     def write_json(self, content: list, output_file: Path):
         try:
-            delete_file(src=output_file, logger=self.logger)
+            if file_exists(file=output_file, logger=self.logger):
+                delete_file(src=output_file, logger=self.logger)
             self.logger.info(f"[write_json] {output_file}")
             with open(output_file, "w") as outfile:
                 json.dump(content, outfile, indent=4)

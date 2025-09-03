@@ -38,8 +38,7 @@ class MBOXParser:
         self.is_logstash_active = is_logstash_active
         self._analytics = generate_analytics()
 
-    def send_to_elk(self, json_data: list, extrafields: dict = {}):
-        """Fonction qui envoie les résultats d'un array vers ELK"""
+    def send_to_elk(self, json_data: dict, extrafields: dict = {}):
         try:
             ip = self.logstash_url
             if ip.startswith("http"):

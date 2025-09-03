@@ -12,8 +12,9 @@ from src.thirdparty.ParseMFT.mft_analyzer import MftAnalyzer
 from src.thirdparty.ParseMPLog import ParseMPLog
 from src.thirdparty.winactivities.ParseWinactivities import ParseWinActivities
 from src.thirdparty.trashparse.ParseTrash import TrashParse
+from src.thirdparty.ParseRDPCache import BMCContainer
 from logging import Logger
-from src import BasePlugin
+from src import BasePlugin, Status
 import typing as t
 from json import loads
 from pathlib import Path
@@ -53,11 +54,7 @@ class Plugin(BasePlugin):
         self.zip_destination = Path(os.path.join(self.generaptor_dir, "extract"))
         triageutils.create_directory_path(path=self.zip_destination, logger=self.logger)
         self.config["general"]["extracted_zip"] = f"{self.zip_destination}"
-        _updt = triageutils.update_config_file(
-            data=self.config,
-            conf_file=f'{self.config["general"]["extract"]}/config.yaml',
-            logger=self.logger,
-        )
+        self.update_config_file(data=self.config)
 
         self.evtx_share = Path(os.path.join(self.generaptor_dir, "EVTX_Orig"))
         triageutils.create_directory_path(path=self.evtx_share, logger=self.logger)
@@ -100,6 +97,9 @@ class Plugin(BasePlugin):
 
         self.psreadline_dir = Path(os.path.join(self.generaptor_dir, "PSReadLine"))
         triageutils.create_directory_path(path=self.psreadline_dir, logger=self.logger)
+
+        self.RDPCache_dir = Path(os.path.join(self.generaptor_dir, "RDPCache"))
+        triageutils.create_directory_path(path=self.RDPCache_dir, logger=self.logger)
 
         self.log_dirs = (
             dict()
@@ -210,33 +210,34 @@ class Plugin(BasePlugin):
         output_directory: Path,
         private_key_secret: str,
         logger: Logger = None,
-    ):
+    ) -> bool:
         if not self._check_same_fingerprint(
             private_key=private_key, logger=self.logger
         ):
-            return
+            return False
         try:
             private_key = self.load_private_key(private_key, private_key_secret)
         except ValueError as ex:
             self.error("invalid private key and/or passphrase")
             self.error(ex)
-            return
+            return False
         try:
             secret = self._secret(private_key)
         except ValueError:
             self.error("private key does not match collection archive")
-            return
+            return False
         dirname = self.hostname  # f"{archive.stem}"
         directory = output_directory / dirname
         directory.mkdir(parents=True, exist_ok=True)
         self.info(f"extracting: {archive}")
         self.info(f"        to: {directory}")
         self.extract_to(directory=directory, secret=secret)
+        return True
 
     @triageutils.LOG
     def check_docker_image(
         self,
-        image_name="dockerhub.cert.lan/log2timeline/plaso",
+        image_name="log2timeline/plaso",
         tag="20230717",
         logger=None,
     ):
@@ -689,24 +690,26 @@ class Plugin(BasePlugin):
                     logger=self.logger,
                 )
                 _res = _p.parse_evtx()
-                self.info(f"[generaptor_parse_evtx] {_res}")
+                self.info(f"[generaptor_parse_evtx] Result: {_res}")
 
                 # send analytics info
                 if self.is_logstash_active:
                     _file_infos = triageutils.get_file_informations(filepath=_f)
                     _analytics = triageutils.generate_analytics(logger=self.logger)
-                    _analytics["log"]["file"]["eventcount"] = _res.get(
+                    _analytics["log"]["file"]["eventcount"] = _res.setdefault(
                         "nb_events_read", 0
                     )
-                    _analytics["log"]["file"]["eventsent"] = _res.get(
+                    _analytics["log"]["file"]["eventsent"] = _res.setdefault(
                         "nb_events_sent", 0
                     )
                     _analytics["log"]["file"]["path"] = str(_f)
-                    _analytics["log"]["file"]["size"] = _file_infos.get("fileSize", 0)
-                    _analytics["log"]["file"]["lastaccessed"] = _file_infos.get(
+                    _analytics["log"]["file"]["size"] = _file_infos.setdefault(
+                        "fileSize", 0
+                    )
+                    _analytics["log"]["file"]["lastaccessed"] = _file_infos.setdefault(
                         "lastAccessTime", 0
                     )
-                    _analytics["log"]["file"]["creation"] = _file_infos.get(
+                    _analytics["log"]["file"]["creation"] = _file_infos.setdefault(
                         "creationTime", 0
                     )
                     _analytics["csirt"]["client"] = self.clientname
@@ -874,7 +877,7 @@ class Plugin(BasePlugin):
                 try:
                     _username = _f.parts[_f.parts.index("Users") + 1]
                 except Exception as errorname:
-                    self.error(f"{errorname}")
+                    self.error(f"File not in Users folders: {errorname}")
                     _username = time.time()
                 _dst = self.psreadline_dir / Path(f"{_username}")
                 triageutils.copy_file(
@@ -882,6 +885,70 @@ class Plugin(BasePlugin):
                 )
         except Exception as ex:
             self.error(f"[generaptor_get_consolehost_history] {str(ex)}")
+            raise ex
+
+    @triageutils.LOG
+    def generaptor_get_RDPCache(self, logger: Logger):
+        try:
+            for _d in [f for f in self.RDPCache_dir.iterdir() if f.is_dir()]:
+                triageutils.delete_directory(src=_d, logger=self.logger)
+            # Get BMC files
+            for _f in triageutils.search_files_by_extension_generator(
+                src=self.zip_destination,
+                extension=".bmc",
+                patterninpath="Terminal Server Client",
+            ):
+                try:
+                    _username = _f.parts[_f.parts.index("Users") + 1]
+                except Exception as errorname:
+                    self.error(f"{errorname}")
+                    _username = time.time()
+                _dst = self.RDPCache_dir / Path(f"{_username}")
+                triageutils.copy_file(
+                    src=_f, dst=_dst, overwrite=True, logger=self.logger
+                )
+            # Get BIN files
+            for _f in triageutils.search_files_by_extension_generator(
+                src=self.zip_destination,
+                extension=".bin",
+                patterninpath="Terminal Server Client",
+            ):
+                try:
+                    _username = _f.parts[_f.parts.index("Users") + 1]
+                except Exception as errorname:
+                    self.error(f"{errorname}")
+                    _username = time.time()
+                _dst = self.RDPCache_dir / Path(f"{_username}")
+                triageutils.copy_file(
+                    src=_f, dst=_dst, overwrite=True, logger=self.logger
+                )
+            # Exec parser on subdirectories
+            for _d in [f for f in self.RDPCache_dir.iterdir() if f.is_dir()]:
+                try:
+                    _extract_folder = _d / Path("parsed")
+                    triageutils.create_directory_path(
+                        path=_extract_folder, logger=self.logger
+                    )
+                    _bmcc = BMCContainer(logger=self.logger)
+                    for _cache_file in [
+                        _temp_file
+                        for _temp_file in _d.iterdir()
+                        if _temp_file.is_file()
+                    ]:
+                        try:
+                            self.logger.info(
+                                f"[generaptor_get_RDPCache] Processing file: {_cache_file}"
+                            )
+                            if _bmcc.b_import(_cache_file):
+                                _bmcc.b_process()
+                                _bmcc.b_export(_extract_folder)
+                                _bmcc.b_flush()
+                        except Exception as ex:
+                            self.error(f"[bmcc #1] {str(ex)}")
+                except Exception as ex:
+                    self.error(f"[bmcc #2] {str(ex)}")
+        except Exception as ex:
+            self.error(f"[generaptor_get_RDPCache] {str(ex)}")
             raise ex
 
     @triageutils.LOG
@@ -894,32 +961,62 @@ class Plugin(BasePlugin):
 
         """
         try:
-            self._extract_cmd(
+            self.update_workflow_status(
+                plugin="generaptor", module="plugin", status=Status.STARTED
+            )
+            if not self._extract_cmd(
                 archive=self.zipfile,
                 private_key=self.private_key_file,
                 output_directory=self.zip_destination,
                 private_key_secret=self.private_key_secret,
                 logger=self.logger,
-            )
+            ):
+                raise Exception("Error while extracting archive.")
             if self.config["run"]["generaptor"]["linux"]:
                 self.info("Linux Generaptor")
                 self.get_linux_logs(logger=self.logger)
                 if self.is_logstash_active:
-                    self.ymlcreator(logger=self.logger)
-                    self.check_docker_image(
-                        image_name=self.docker_images["filebeat"]["image"],
-                        tag=self.docker_images["filebeat"]["tag"],
-                        logger=self.logger,
+                    self.update_workflow_status(
+                        plugin="generaptor", module="linux", status=Status.STARTED
                     )
-                    self.generaptor_filebeat(logger=self.logger)
+                    try:
+                        self.ymlcreator(logger=self.logger)
+                        self.check_docker_image(
+                            image_name=self.docker_images["filebeat"]["image"],
+                            tag=self.docker_images["filebeat"]["tag"],
+                            logger=self.logger,
+                        )
+                        self.generaptor_filebeat(logger=self.logger)
+                        self.update_workflow_status(
+                            plugin="generaptor", module="linux", status=Status.FINISHED
+                        )
+                    except Exception as ex:
+                        self.error(f"[generaptor ERROR] {str(ex)}")
+                        self.update_workflow_status(
+                            plugin="generaptor", module="linux", status=Status.ERROR
+                        )
                 if self.config["run"]["generaptor"]["timeline"]:
-                    self.info("[generaptor] Run PLASO")
-                    self.check_docker_image(
-                        image_name=self.docker_images["plaso"]["image"],
-                        tag=self.docker_images["plaso"]["tag"],
-                        logger=self.logger,
+                    self.update_workflow_status(
+                        plugin="generaptor", module="timeline", status=Status.STARTED
                     )
-                    self.generate_plaso_timeline(logger=self.logger)
+                    self.info("[generaptor] Run PLASO")
+                    try:
+                        self.check_docker_image(
+                            image_name=self.docker_images["plaso"]["image"],
+                            tag=self.docker_images["plaso"]["tag"],
+                            logger=self.logger,
+                        )
+                        self.generate_plaso_timeline(logger=self.logger)
+                        self.update_workflow_status(
+                            plugin="generaptor",
+                            module="timeline",
+                            status=Status.FINISHED,
+                        )
+                    except Exception as ex:
+                        self.error(f"[generaptor ERROR] {str(ex)}")
+                        self.update_workflow_status(
+                            plugin="generaptor", module="timeline", status=Status.ERROR
+                        )
             else:
                 self.info("Windows Generaptor")
                 try:
@@ -932,83 +1029,258 @@ class Plugin(BasePlugin):
                 except Exception as copy_err:
                     self.error(f"[RUN] {copy_err}")
                     pass
-                if self.config["run"]["generaptor"].get("evtx", False):
+                if self.config["run"]["generaptor"].setdefault("evtx", False):
                     self.info("[generaptor] Run EVTX")
+                    self.update_workflow_status(
+                        plugin="generaptor", module="evtx", status=Status.STARTED
+                    )
                     if self.config["run"]["generaptor"]["winlogbeat"]:
-                        evtx_logs = self.get_evtx(
-                            evtx_folder=self.zip_destination, logger=self.logger
-                        )
-                        if self.is_winlogbeat_active:
-                            self.send_logs_to_winlogbeat(
-                                evtx_logs=evtx_logs, logger=self.logger
+                        try:
+                            self.update_workflow_status(
+                                plugin="generaptor",
+                                module="winlogbeat",
+                                status=Status.STARTED,
+                            )
+                            evtx_logs = self.get_evtx(
+                                evtx_folder=self.zip_destination, logger=self.logger
+                            )
+                            if self.is_winlogbeat_active:
+                                self.send_logs_to_winlogbeat(
+                                    evtx_logs=evtx_logs, logger=self.logger
+                                )
+                            self.update_workflow_status(
+                                plugin="generaptor",
+                                module="winlogbeat",
+                                status=Status.FINISHED,
+                            )
+                        except Exception as ex:
+                            self.error(f"[generaptor ERROR] {str(ex)}")
+                            self.update_workflow_status(
+                                plugin="generaptor",
+                                module="winlogbeat",
+                                status=Status.ERROR,
                             )
                     else:
-                        self.generaptor_parse_evtx(logger=self.logger)
-                if self.config["run"]["generaptor"].get("registry", False):
+                        try:
+                            self.generaptor_parse_evtx(logger=self.logger)
+                            self.update_workflow_status(
+                                plugin="generaptor",
+                                module="evtx",
+                                status=Status.FINISHED,
+                            )
+                        except Exception as ex:
+                            self.error(f"[generaptor ERROR] {str(ex)}")
+                            self.update_workflow_status(
+                                plugin="generaptor", module="evtx", status=Status.ERROR
+                            )
+                    self.update_workflow_status(
+                        plugin="generaptor", module="evtx", status=Status.FINISHED
+                    )
+                if self.config["run"]["generaptor"].setdefault("registry", False):
                     self.info("[generaptor] Run Registry")
+                    self.update_workflow_status(
+                        plugin="generaptor", module="registry", status=Status.STARTED
+                    )
                     try:
                         self.generaptor_parse_registry(logger=self.logger)
+                        self.update_workflow_status(
+                            plugin="generaptor",
+                            module="registry",
+                            status=Status.FINISHED,
+                        )
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"].get("mft", False):
+                        self.update_workflow_status(
+                            plugin="generaptor", module="registry", status=Status.ERROR
+                        )
+                if self.config["run"]["generaptor"].setdefault("mft", False):
                     self.info("[generaptor] Run MFT")
+                    self.update_workflow_status(
+                        plugin="generaptor", module="mft", status=Status.STARTED
+                    )
                     try:
                         self.generaptor_parse_mft(logger=self.logger)
+                        self.update_workflow_status(
+                            plugin="generaptor", module="mft", status=Status.FINISHED
+                        )
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"].get("usnjrnl", False):
+                        self.update_workflow_status(
+                            plugin="generaptor", module="mft", status=Status.ERROR
+                        )
+                if self.config["run"]["generaptor"].setdefault("usnjrnl", False):
                     self.info("[generaptor] Run UsnJrnl")
+                    self.update_workflow_status(
+                        plugin="generaptor", module="usnjrnl", status=Status.STARTED
+                    )
                     try:
                         self.generaptor_parse_usnjrnl(logger=self.logger)
+                        self.update_workflow_status(
+                            plugin="generaptor",
+                            module="usnjrnl",
+                            status=Status.FINISHED,
+                        )
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"].get("prefetch", False):
+                        self.update_workflow_status(
+                            plugin="generaptor", module="usnjrnl", status=Status.ERROR
+                        )
+                if self.config["run"]["generaptor"].setdefault("prefetch", False):
                     self.info("[generaptor] Run Prefetch")
+                    self.update_workflow_status(
+                        plugin="generaptor", module="prefetch", status=Status.STARTED
+                    )
                     try:
                         self.generaptor_parse_prefetch(logger=self.logger)
+                        self.update_workflow_status(
+                            plugin="generaptor",
+                            module="prefetch",
+                            status=Status.FINISHED,
+                        )
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"].get("mplog", False):
+                        self.update_workflow_status(
+                            plugin="generaptor", module="prefetch", status=Status.ERROR
+                        )
+                if self.config["run"]["generaptor"].setdefault("mplog", False):
                     self.info("[generaptor] Run MPLog")
+                    self.update_workflow_status(
+                        plugin="generaptor", module="mplog", status=Status.STARTED
+                    )
                     try:
                         self.generaptor_parse_mplog(logger=self.logger)
+                        self.update_workflow_status(
+                            plugin="generaptor", module="mplog", status=Status.FINISHED
+                        )
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"].get("activitiescache", False):
+                        self.update_workflow_status(
+                            plugin="generaptor", module="mplog", status=Status.ERROR
+                        )
+                if self.config["run"]["generaptor"].setdefault(
+                    "activitiescache", False
+                ):
                     self.info("[generaptor] Run ActivitiesCache")
+                    self.update_workflow_status(
+                        plugin="generaptor",
+                        module="activitiescache",
+                        status=Status.STARTED,
+                    )
                     try:
                         self.generaptor_parse_activitiescache(logger=self.logger)
+                        self.update_workflow_status(
+                            plugin="generaptor",
+                            module="activitiescache",
+                            status=Status.FINISHED,
+                        )
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"].get("recyclebin", False):
+                        self.update_workflow_status(
+                            plugin="generaptor",
+                            module="activitiescache",
+                            status=Status.ERROR,
+                        )
+                if self.config["run"]["generaptor"].setdefault("recyclebin", False):
                     self.info("[generaptor] Run Recycle Bin")
+                    self.update_workflow_status(
+                        plugin="generaptor", module="recyclebin", status=Status.STARTED
+                    )
                     try:
                         self.generaptor_parse_recyclebin(logger=self.logger)
+                        self.update_workflow_status(
+                            plugin="generaptor",
+                            module="recyclebin",
+                            status=Status.FINISHED,
+                        )
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"].get("psreadline", False):
+                        self.update_workflow_status(
+                            plugin="generaptor",
+                            module="recyclebin",
+                            status=Status.ERROR,
+                        )
+                if self.config["run"]["generaptor"].setdefault("psreadline", False):
                     self.info("[generaptor] Run PSReadline")
+                    self.update_workflow_status(
+                        plugin="generaptor", module="psreadline", status=Status.STARTED
+                    )
                     try:
                         self.generaptor_get_consolehost_history(logger=self.logger)
+                        self.update_workflow_status(
+                            plugin="generaptor",
+                            module="psreadline",
+                            status=Status.FINISHED,
+                        )
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                if self.config["run"]["generaptor"].get("iis", False):
+                        self.update_workflow_status(
+                            plugin="generaptor",
+                            module="psreadline",
+                            status=Status.ERROR,
+                        )
+                if self.config["run"]["generaptor"].setdefault("rdpcache", False):
+                    self.info("[generaptor] Run RDPCache")
+                    self.update_workflow_status(
+                        plugin="generaptor", module="rdpcache", status=Status.STARTED
+                    )
+                    try:
+                        self.generaptor_get_RDPCache(logger=self.logger)
+                        self.update_workflow_status(
+                            plugin="generaptor",
+                            module="rdpcache",
+                            status=Status.FINISHED,
+                        )
+                    except Exception as err_rdp:
+                        self.error(f"[generaptor ERROR] {str(err_rdp)}")
+                        self.update_workflow_status(
+                            plugin="generaptor", module="rdpcache", status=Status.ERROR
+                        )
+                if self.config["run"]["generaptor"].setdefault("iis", False):
                     self.info("[generaptor] Run IIS")
+                    self.update_workflow_status(
+                        plugin="generaptor", module="iis", status=Status.STARTED
+                    )
                     try:
                         res = self.get_iis_logs(logger=self.logger)
+                        if self.is_logstash_active:
+                            self.send_iis_logs(iis_logs=res, logger=self.logger)
+                        self.update_workflow_status(
+                            plugin="generaptor", module="iis", status=Status.FINISHED
+                        )
                     except Exception as err_reg:
                         self.error(f"[generaptor ERROR] {str(err_reg)}")
-                    if self.is_logstash_active:
-                        self.send_iis_logs(iis_logs=res, logger=self.logger)
-                if self.config["run"]["generaptor"].get("timeline", False):
+                        self.update_workflow_status(
+                            plugin="generaptor", module="iis", status=Status.ERROR
+                        )
+                if self.config["run"]["generaptor"].setdefault("timeline", False):
                     self.info("[generaptor] Run PLASO")
-                    self.check_docker_image(
-                        image_name=self.docker_images["plaso"]["image"],
-                        tag=self.docker_images["plaso"]["tag"],
-                        logger=self.logger,
+                    self.update_workflow_status(
+                        plugin="generaptor", module="timeline", status=Status.STARTED
                     )
-                    self.generate_plaso_timeline(logger=self.logger)
+                    try:
+                        self.check_docker_image(
+                            image_name=self.docker_images["plaso"]["image"],
+                            tag=self.docker_images["plaso"]["tag"],
+                            logger=self.logger,
+                        )
+                        self.generate_plaso_timeline(logger=self.logger)
+                        self.update_workflow_status(
+                            plugin="generaptor",
+                            module="timeline",
+                            status=Status.FINISHED,
+                        )
+                    except Exception as err_reg:
+                        self.error(f"[generaptor ERROR] {str(err_reg)}")
+                        self.update_workflow_status(
+                            plugin="generaptor", module="timeline", status=Status.ERROR
+                        )
+            self.update_workflow_status(
+                plugin="generaptor", module="plugin", status=Status.FINISHED
+            )
         except Exception as ex:
+            self.update_workflow_status(
+                plugin="generaptor", module="plugin", status=Status.ERROR
+            )
             self.error(f"[generaptor ERROR] {str(ex)}")
             self.info("Exception so kill my running containers")
             self.kill_docker_container(logger=self.logger)

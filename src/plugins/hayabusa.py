@@ -3,7 +3,7 @@ import os
 import json
 from pathlib import Path
 from src.thirdparty import triageutils as triageutils
-from src import BasePlugin
+from src import BasePlugin, Status
 
 
 class Plugin(BasePlugin):
@@ -175,10 +175,13 @@ class Plugin(BasePlugin):
 
         """
         try:
+            self.update_workflow_status(plugin="hayabusa", status=Status.STARTED)
             self.exec_hayabusa(log_folder=self.evtx_dir, logger=self.logger)
             if self.is_logstash_active:
                 _event_sent = self.send_to_elk(logger=self.logger)
                 self.send_analytics_to_elk(event_sent=_event_sent, logger=self.logger)
+            self.update_workflow_status(plugin="hayabusa", status=Status.FINISHED)
         except Exception as ex:
             self.error(f"[HAYABUSA] run {str(ex)}")
+            self.update_workflow_status(plugin="hayabusa", status=Status.ERROR)
             raise ex

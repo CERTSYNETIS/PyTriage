@@ -2,6 +2,8 @@
 <img src="docs/images/pytriage_blanc.png"/>
 </p>
 
+[Introduction](#introduction) | [Fonctionnement](#fonctionnement) | [Ajout de plugin](#ajout-de-plugin) | [Déploiement](#déploiement)
+
 ## Introduction
 
 Le serveur de triage a pour but d'automatiser le traitement des collectes effectuées sur les systèmes à investiguer. Il effectue le *processing* de certaines tâches (*timelining* et détection SIGMA notamment) ainsi que le *forwarding* vers les outils d'analyses (pile ELK et Timesketch).
@@ -16,10 +18,13 @@ Actuellement, le serveur de triage effectue le traitements des collectes suivant
 - DFIR-O365RC
 - ADAUDIT
 - MAIL (pst/mbox)
+- Google Workspace
 
 ## Fonctionnement
 
-Le service Pytriage est développé en python 3.9, la montée de version sera dépendante des packages et autres librairies utilisées (voir requirements.txt). Le serveur web utilise le package Flask pour le serveur web, CELERY pour le traitement en parallèle de collectes et d'une base REDIS (pour celery).
+Le service Pytriage est développé en python 3.9, la montée de version sera dépendante des packages et autres librairies utilisées (voir requirements.txt). 
+Le serveur web utilise le package Flask pour le serveur web, CELERY pour le traitement en parallèle de collectes et d'une base REDIS (pour celery).
+L'authentification si activée se fait via Keycloak.
 
 <p align="center">
 <img src="docs/images/pytriage.png"/>
@@ -65,6 +70,7 @@ OU
 - Parsing Windows10 Timeline (ActivitiesCache)
 - Parsing $Recycle.Bin
 - Récupération des fichiers d'historique Powershell des utilisateurs
+- RDP Bitmap Cache parser
 
 #### GENERAPTOR Windows
 
@@ -86,6 +92,7 @@ OU
 - Parsing Windows10 Timeline (ActivitiesCache)
 - Parsing $Recycle.Bin
 - Récupération des fichiers d'historique Powershell des utilisateurs
+- RDP Bitmap Cache parser
 
 #### DFIR-ORC
 
@@ -163,6 +170,11 @@ L'archive envoyée est dézippée et les fichiers json présents sont parsés pu
 > Ce plugin s'exécute sur les fichiers PST et MBOX. Le fichier d'entrée est une archive ZIP contenant ces fichiers.
 
 L'archive envoyée est dézippée et les fichiers PST/MBOX présents sont parsés puis envoyés à ELK. Une option est proposée pour récupérer ou non les pièces-jointes des mails.
+
+#### Google Workspace
+> Ce plugin s'exécute sur les fichiers JSON générés par l'outil de collecte [ALFA](https://github.com/invictus-ir/ALFA). Le fichier d'entrée est une archive ZIP contenant ces fichiers.
+
+L'archive envoyée est dézippée et les fichiers JSON présents sont parsés puis envoyés à ELK.
 
 
 ### Standalone
@@ -250,6 +262,7 @@ class Plugin(BasePlugin):
 * [Mplog-parser](https://github.com/Intrinsec/mplog_parser)
 * [USN-Journal-Parser](https://github.com/PoorBillionaire/USN-Journal-Parser)
 * [Mail parsers](https://github.com/Intrinsec/mplog_parser)
+* [RDP Cache parser](https://github.com/ANSSI-FR/bmc-tools)
 
 ### Images Docker
 
@@ -261,17 +274,29 @@ class Plugin(BasePlugin):
 
 Le serveur de triage est déployé comme un service docker.
 
-
 ### Configuration
 
 La configuration est présente dans le fichier **config/triage.yaml**.
-
 Il est possible d'activer ou non les connexions aux services tiers Timesketch, ELK et Winlogbeat.
 
+#### Keycloak bindings
+Pour utiliser l'authentification via keycloak, il faut renseigner les variables d'environnement présentes dans le fichier **docker-compose.yml**
+Les utilisateurs doivent être membre des groupes définis dans keycloak pour accéder aux interfaces correspondantes (ici *admin* / *cert*).
+
+```yaml
+USE_KEYCLOAK=<False/True>
+KEYCLOAK_SERVER_URL=<keycloak url>
+KEYCLOAK_REALM=<realm name>
+KEYCLOAK_CLIENT_ID=<client ID>
+KEYCLOAK_CLIENT_SECRET=<client secret>
+REDIRECT_URI=<callback url> #https://<pytriage IP>/callback
+KEYCLOAK_ADMIN_GROUP=ADMIN
+KEYCLOAK_USERS_GROUP=CERT
+```
 
 ### Prérequis
 
-Créer les dossiers **data**, **winlogbeat**, **log** et **hayabusa** si non présents (chemin à renseigner dans les fichiers docker-compose.yml et dans config/triage.yaml *volumes => data* qui est le volume hôte à monter donc ici ./data)
+Créer les dossiers **data**, **winlogbeat**, **log** et **hayabusa** si non présents (chemin à renseigner dans les fichiers docker-compose-build/prod.yml et dans config/triage.yaml *volumes => data* qui est le volume hôte à monter donc ici ./data)
 ```bash
 mkdir ./data
 mkdir ./winlogbeat
@@ -295,7 +320,7 @@ sudo apt install cifs-utils
 Start docker images
 
 ```bash
-docker compose -f Docker/docker-compose.yml up -d
+docker compose -f Docker/docker-compose.yml up -d --build
 ```
 
 Le service web est disponible sur https://localhost

@@ -1,0 +1,131 @@
+import os
+import json
+from logging import Logger
+from pathlib import Path
+from src.thirdparty import triageutils as triageutils
+from src import BasePlugin, Status
+
+
+class Plugin(BasePlugin):
+    """
+    Google Workspace plugin pour triage
+    """
+
+    def __init__(self, conf: dict):
+        super().__init__(config=conf)
+        self.google_dir = Path(os.path.join(self.upload_dir, self.hostname, "google"))
+        triageutils.create_directory_path(path=self.google_dir, logger=self.logger)
+        self.google_archive = Path(
+            os.path.join(self.upload_dir, conf["archive"]["name"])
+        )
+        self.config["general"]["extracted_zip"] = f"{self.google_dir}"
+        self.update_config_file(data=self.config)
+
+    @triageutils.LOG
+    def google_extract_zip(self, archive: Path, dest: Path, logger: Logger):
+        """Extrait tous les fichiers de l'archive ZIP Google.
+
+        Args:
+            archive (str): optionnel chemin complet du fichier zip
+            dest (str): optionnel chemin complet de décompression de l'archive
+        """
+        try:
+            if not archive:
+                archive = self.google_archive
+            if not dest:
+                dest = self.google_dir
+            self.info(f"Zip file: {archive}")
+            self.info(f"Dest folder: {dest}")
+            triageutils.extract_zip_archive(
+                archive=archive,
+                dest=dest,
+                logger=self.logger,
+            )
+        except Exception as ex:
+            self.logger.error(f"[google_extract_zip] {ex}")
+            raise ex
+
+    @triageutils.LOG
+    def google_get_json_files(self, logger=None) -> list:
+        """Fonction qui récupère les fichiers json de l'archive Google"""
+        records = []
+        try:
+            records.extend(
+                triageutils.search_files_by_extension(
+                    dir=self.google_dir, extension=".json", logger=self.logger
+                )
+            )
+        except Exception as e:
+            self.error(f"[google_parse_files] {str(e)}")
+            raise e
+        finally:
+            self.info(f"Files found: {len(records)}")
+        return records
+
+    @triageutils.LOG
+    def google_send_json_results(self, json_file: Path, logger: Logger):
+        """Fonction qui envoie les résultats json Google vers ELK"""
+        try:
+            application = json_file.stem.lower().replace("_", "-")
+            extrafields = dict()
+            extrafields["csirt"] = dict()
+            extrafields["csirt"]["client"] = self.clientname.lower()
+            extrafields["csirt"]["application"] = application
+            extrafields["csirt"]["hostname"] = self.hostname.lower()
+            ip = self.logstash_url
+            if ip.startswith("http"):
+                ip = self.logstash_url.split("//")[1]
+            triageutils.send_jsonl_to_elk(
+                filepath=json_file.as_posix(),
+                ip=ip,
+                port=self.google_port,
+                logger=self.logger,
+                extrafields=extrafields,
+            )
+        except Exception as e:
+            self.error(f"[google_send_json_results] {str(e)}")
+            raise e
+
+    @triageutils.LOG
+    def is_jsonl_file(self, input_file: Path) -> bool:
+        try:
+            with open(input_file, "r", encoding="utf-8-sig") as jsonl_f:
+                json_data = [json.loads(line) for line in jsonl_f]
+            return True
+        except Exception as e:
+            self.info(f"[is_jsonl_file] {input_file} Not a JSONL file")
+            return False
+
+    @triageutils.LOG
+    def run(self, logger=None):
+        """Fonction principale qui exécute les plugins de parsing Google
+
+        Args:
+
+        Returns:
+
+        """
+        try:
+            self.update_workflow_status(
+                plugin="google", module="plugin", status=Status.STARTED
+            )
+            self.google_extract_zip(
+                archive=self.google_archive, dest=self.google_dir, logger=self.logger
+            )
+            _files = self.google_get_json_files(logger=self.logger)
+            _total = len(_files)
+            _count = 0
+            for f in _files:
+                _count += 1
+                f = Path(f)
+                self.info(f"[google] send file {_count}/{_total}")
+                self.google_send_json_results(json_file=f, logger=self.logger)
+            self.update_workflow_status(
+                plugin="google", module="plugin", status=Status.FINISHED
+            )
+        except Exception as ex:
+            self.error(f"[google] run {str(ex)}")
+            self.update_workflow_status(
+                plugin="google", module="plugin", status=Status.ERROR
+            )
+            raise ex

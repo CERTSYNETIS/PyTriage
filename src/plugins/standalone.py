@@ -7,7 +7,7 @@ from pathlib import Path
 from logging import Logger
 from src.thirdparty import triageutils as triageutils
 from src.thirdparty.ParseEVTX import ParseEVTX
-from src import BasePlugin
+from src import BasePlugin, Status
 
 
 class Plugin(BasePlugin):
@@ -258,9 +258,8 @@ class Plugin(BasePlugin):
                 f"{log_folder}:/fortinet",
                 f"{new_config}:/usr/share/filebeat/filebeat.yml:ro",
             ]
-            print(f"VolDirs: {voldisk}")
-
-            print("Start DOCKER FileBeat")
+            self.info(f"VolDirs: {voldisk}")
+            self.info("Start DOCKER FileBeat")
             _docker = docker.from_env()
             cmd = ["filebeat", "-e", "--once", "--strict.perms=false"]
             container = _docker.containers.run(
@@ -385,119 +384,183 @@ class Plugin(BasePlugin):
         """
         try:
             if self.config["run"]["standalone"]["hayabusa"] and self.is_logstash_active:
-                self.standalone_hayabusa(logger=self.logger)
+                try:
+                    self.update_workflow_status(
+                        plugin="standalone", module="hayabusa", status=Status.STARTED
+                    )
+                    self.standalone_hayabusa(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="standalone", module="hayabusa", status=Status.FINISHED
+                    )
+                except Exception as ex:
+                    self.error(f"[Standalone ERROR] {str(ex)}")
+                    self.update_workflow_status(
+                        plugin="standalone", module="hayabusa", status=Status.ERROR
+                    )
             elif (
                 self.config["run"]["standalone"]["winlogbeat"]
                 and self.is_winlogbeat_active
             ):
-                zip_destination = os.path.join(self.standalone_dir, "extract")
-                triageutils.create_directory_path(
-                    path=zip_destination, logger=self.logger
-                )
-                self.standalone_extract_zip(
-                    archive=self.standalone_input_file,
-                    dest=zip_destination,
-                    logger=self.logger,
-                )
-                evtx_logs = self.standalone_get_evtx(
-                    evtx_folder=zip_destination, logger=self.logger
-                )
-                self.standalone_winlogbeat(evtx_logs=evtx_logs, logger=self.logger)
-            elif self.config["run"]["standalone"]["evtx"]:
-                zip_destination = os.path.join(self.standalone_dir, "extract")
-                triageutils.create_directory_path(
-                    path=zip_destination, logger=self.logger
-                )
-                evtx_destination = os.path.join(self.standalone_dir, "EVTX")
-                triageutils.create_directory_path(
-                    path=evtx_destination, logger=self.logger
-                )
-                self.standalone_extract_zip(
-                    archive=self.standalone_input_file,
-                    dest=zip_destination,
-                    logger=self.logger,
-                )
-                _ip = self.logstash_url
-                if _ip.startswith("http"):
-                    _ip = self.logstash_url.split("//")[1]
-                for _f in triageutils.search_files_by_extension_generator(
-                    src=zip_destination, extension=".evtx", logger=self.logger
-                ):
-                    _p = ParseEVTX(
-                        evtxfilepath=_f,
-                        ip=_ip,
-                        port=self.evtxparser_port,
-                        client=self.clientname,
-                        hostname=self.hostname,
-                        mapping=self.evtx_mapping,
-                        output_folder=Path(evtx_destination),
-                        logstash_is_active=self.is_logstash_active,
+                try:
+                    self.update_workflow_status(
+                        plugin="standalone", module="winlogbeat", status=Status.STARTED
+                    )
+                    zip_destination = os.path.join(self.standalone_dir, "extract")
+                    triageutils.create_directory_path(
+                        path=zip_destination, logger=self.logger
+                    )
+                    self.standalone_extract_zip(
+                        archive=self.standalone_input_file,
+                        dest=zip_destination,
                         logger=self.logger,
                     )
-                    _res = _p.parse_evtx()
-                    self.info(f"[Standalone] {_res}")
-
-                    # send analytics info
-                    if self.is_logstash_active:
-                        _file_infos = triageutils.get_file_informations(filepath=_f)
-                        _analytics = triageutils.generate_analytics(logger=self.logger)
-                        _analytics["log"]["file"]["eventcount"] = _res.get(
-                            "nb_events_read", 0
-                        )
-                        _analytics["log"]["file"]["eventsent"] = _res.get(
-                            "nb_events_sent", 0
-                        )
-                        _analytics["log"]["file"]["path"] = _res.get("file", "")
-                        _analytics["log"]["file"]["size"] = _file_infos.get(
-                            "fileSize", 0
-                        )
-                        _analytics["log"]["file"]["lastaccessed"] = _file_infos.get(
-                            "lastAccessTime", 0
-                        )
-                        _analytics["log"]["file"]["creation"] = _file_infos.get(
-                            "creationTime", 0
-                        )
-                        _analytics["csirt"]["client"] = self.clientname
-                        _analytics["csirt"]["hostname"] = self.hostname
-                        _analytics["csirt"]["application"] = "standalone_parse_evtx"
-                        triageutils.send_data_to_elk(
-                            data=_analytics,
+                    evtx_logs = self.standalone_get_evtx(
+                        evtx_folder=zip_destination, logger=self.logger
+                    )
+                    self.standalone_winlogbeat(evtx_logs=evtx_logs, logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="standalone", module="winlogbeat", status=Status.FINISHED
+                    )
+                except Exception as ex:
+                    self.error(f"[Standalone ERROR] {str(ex)}")
+                    self.update_workflow_status(
+                        plugin="standalone", module="winlogbeat", status=Status.ERROR
+                    )
+            elif self.config["run"]["standalone"]["evtx"]:
+                try:
+                    self.update_workflow_status(
+                        plugin="standalone", module="evtx", status=Status.STARTED
+                    )
+                    zip_destination = os.path.join(self.standalone_dir, "extract")
+                    triageutils.create_directory_path(
+                        path=zip_destination, logger=self.logger
+                    )
+                    evtx_destination = os.path.join(self.standalone_dir, "EVTX")
+                    triageutils.create_directory_path(
+                        path=evtx_destination, logger=self.logger
+                    )
+                    self.standalone_extract_zip(
+                        archive=self.standalone_input_file,
+                        dest=zip_destination,
+                        logger=self.logger,
+                    )
+                    _ip = self.logstash_url
+                    if _ip.startswith("http"):
+                        _ip = self.logstash_url.split("//")[1]
+                    for _f in triageutils.search_files_by_extension_generator(
+                        src=zip_destination, extension=".evtx", logger=self.logger
+                    ):
+                        _p = ParseEVTX(
+                            evtxfilepath=_f,
                             ip=_ip,
-                            port=self.selfassessment_port,
+                            port=self.evtxparser_port,
+                            client=self.clientname,
+                            hostname=self.hostname,
+                            mapping=self.evtx_mapping,
+                            output_folder=Path(evtx_destination),
+                            logstash_is_active=self.is_logstash_active,
                             logger=self.logger,
                         )
+                        _res = _p.parse_evtx()
+                        self.info(f"[Standalone] {_res}")
+
+                        # send analytics info
+                        if self.is_logstash_active:
+                            _file_infos = triageutils.get_file_informations(filepath=_f)
+                            _analytics = triageutils.generate_analytics(
+                                logger=self.logger
+                            )
+                            _analytics["log"]["file"]["eventcount"] = _res.get(
+                                "nb_events_read", 0
+                            )
+                            _analytics["log"]["file"]["eventsent"] = _res.get(
+                                "nb_events_sent", 0
+                            )
+                            _analytics["log"]["file"]["path"] = _res.get("file", "")
+                            _analytics["log"]["file"]["size"] = _file_infos.get(
+                                "fileSize", 0
+                            )
+                            _analytics["log"]["file"]["lastaccessed"] = _file_infos.get(
+                                "lastAccessTime", 0
+                            )
+                            _analytics["log"]["file"]["creation"] = _file_infos.get(
+                                "creationTime", 0
+                            )
+                            _analytics["csirt"]["client"] = self.clientname
+                            _analytics["csirt"]["hostname"] = self.hostname
+                            _analytics["csirt"]["application"] = "standalone_parse_evtx"
+                            triageutils.send_data_to_elk(
+                                data=_analytics,
+                                ip=_ip,
+                                port=self.selfassessment_port,
+                                logger=self.logger,
+                            )
+                    self.update_workflow_status(
+                        plugin="standalone", module="evtx", status=Status.FINISHED
+                    )
+                except Exception as ex:
+                    self.error(f"[Standalone ERROR] {str(ex)}")
+                    self.update_workflow_status(
+                        plugin="standalone", module="evtx", status=Status.ERROR
+                    )
             elif (
                 self.config["run"]["standalone"]["fortinet"] and self.is_logstash_active
             ):
-                zip_destination = os.path.join(self.standalone_dir, "Fortinet")
-                triageutils.create_directory_path(
-                    path=zip_destination, logger=self.logger
-                )
-                self.standalone_extract_zip(
-                    archive=self.standalone_input_file,
-                    dest=zip_destination,
-                    logger=self.logger,
-                )
-                self.standalone_fortinet_filebeat(
-                    log_folder=zip_destination, logger=self.logger
-                )
+                try:
+                    self.update_workflow_status(
+                        plugin="standalone", module="fortinet", status=Status.STARTED
+                    )
+                    zip_destination = os.path.join(self.standalone_dir, "Fortinet")
+                    triageutils.create_directory_path(
+                        path=zip_destination, logger=self.logger
+                    )
+                    self.standalone_extract_zip(
+                        archive=self.standalone_input_file,
+                        dest=zip_destination,
+                        logger=self.logger,
+                    )
+                    self.standalone_fortinet_filebeat(
+                        log_folder=zip_destination, logger=self.logger
+                    )
+                    self.update_workflow_status(
+                        plugin="standalone", module="fortinet", status=Status.FINISHED
+                    )
+                except Exception as ex:
+                    self.error(f"[Standalone ERROR] {str(ex)}")
+                    self.update_workflow_status(
+                        plugin="standalone", module="fortinet", status=Status.ERROR
+                    )
             elif (
                 self.config["run"]["standalone"]["forcepoint"]
                 and self.is_logstash_active
             ):
-                zip_destination = os.path.join(self.standalone_dir, "Forcepoint")
-                triageutils.create_directory_path(
-                    path=zip_destination, logger=self.logger
-                )
-                self.standalone_extract_zip(
-                    archive=self.standalone_input_file,
-                    dest=zip_destination,
-                    logger=self.logger,
-                )
-                forcepoint_logs = self.standalone_get_log_files(
-                    log_folder=zip_destination, logger=self.logger
-                )
-                self.standalone_forcepoint_log(logs=forcepoint_logs, logger=self.logger)
+                try:
+                    self.update_workflow_status(
+                        plugin="standalone", module="forcepoint", status=Status.STARTED
+                    )
+                    zip_destination = os.path.join(self.standalone_dir, "Forcepoint")
+                    triageutils.create_directory_path(
+                        path=zip_destination, logger=self.logger
+                    )
+                    self.standalone_extract_zip(
+                        archive=self.standalone_input_file,
+                        dest=zip_destination,
+                        logger=self.logger,
+                    )
+                    forcepoint_logs = self.standalone_get_log_files(
+                        log_folder=zip_destination, logger=self.logger
+                    )
+                    self.standalone_forcepoint_log(
+                        logs=forcepoint_logs, logger=self.logger
+                    )
+                    self.update_workflow_status(
+                        plugin="standalone", module="forcepoint", status=Status.FINISHED
+                    )
+                except Exception as ex:
+                    self.error(f"[Standalone ERROR] {str(ex)}")
+                    self.update_workflow_status(
+                        plugin="standalone", module="forcepoint", status=Status.ERROR
+                    )
         except Exception as ex:
             self.error(f"[Standalone] run {str(ex)}")
             raise ex

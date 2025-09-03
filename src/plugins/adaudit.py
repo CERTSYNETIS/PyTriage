@@ -1,12 +1,7 @@
-import subprocess
 import os
-import json
-import csv
 import datetime
-import asyncio
 from src.thirdparty import triageutils as triageutils
-from src import BasePlugin
-import logging
+from src import BasePlugin, Status
 from charset_normalizer import detect
 
 
@@ -21,7 +16,6 @@ class Plugin(BasePlugin):
         self.adaudit_dir = os.path.join(self.upload_dir, self.audit_date, "adaudit")
         triageutils.create_directory_path(path=self.adaudit_dir, logger=self.logger)
         self.adaudit_archive = os.path.join(self.upload_dir, conf["archive"]["name"])
-        self.info(f"Files found: {self.adaudit_archive}")
 
     @triageutils.LOG
     def adaudit_extract_zip(
@@ -190,6 +184,7 @@ class Plugin(BasePlugin):
 
         """
         try:
+            self.update_workflow_status(plugin="adaudit", status=Status.STARTED)
             self.adaudit_extract_zip(
                 archive=self.adaudit_archive, dest=self.adaudit_dir, logger=self.logger
             )
@@ -210,6 +205,8 @@ class Plugin(BasePlugin):
                     )
                 else:
                     self.info(f"[adaudit] Extension not yet supported, sorry")
+            self.update_workflow_status(plugin="adaudit", status=Status.FINISHED)
         except Exception as ex:
             self.error(f"[adaudit] run {str(ex)}")
+            self.update_workflow_status(plugin="adaudit", status=Status.ERROR)
             raise ex

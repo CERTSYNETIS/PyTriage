@@ -6,9 +6,7 @@ from typing import Optional
 from itertools import islice
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
-
 from pathlib import Path
-
 import docker
 from src.thirdparty import triageutils as triageutils
 from src.thirdparty.ParseEVTX import ParseEVTX
@@ -19,8 +17,9 @@ from src.thirdparty.ParsePrefetch import ParsePrefetch
 from src.thirdparty.ParseMPLog import ParseMPLog
 from src.thirdparty.winactivities.ParseWinactivities import ParseWinActivities
 from src.thirdparty.trashparse.ParseTrash import TrashParse
+from src.thirdparty.ParseRDPCache import BMCContainer
 from logging import Logger
-from src import BasePlugin
+from src import BasePlugin, Status
 
 
 class Plugin(BasePlugin):
@@ -44,11 +43,7 @@ class Plugin(BasePlugin):
         self.mount_point = os.path.join(self.kape_dir, "mnt")
         triageutils.create_directory_path(path=self.mount_point, logger=self.logger)
         self.config["general"]["extracted_zip"] = f"{self.mount_point}"
-        _updt = triageutils.update_config_file(
-            data=self.config,
-            conf_file=f'{self.config["general"]["extract"]}/config.yaml',
-            logger=self.logger,
-        )
+        self.update_config_file(data=self.config)
 
         self.plaso_folder = os.path.join(self.kape_dir, "plaso")
         triageutils.create_directory_path(path=self.plaso_folder, logger=self.logger)
@@ -88,6 +83,9 @@ class Plugin(BasePlugin):
 
         self.psreadline_dir = Path(os.path.join(self.kape_dir, "PSReadLine"))
         triageutils.create_directory_path(path=self.psreadline_dir, logger=self.logger)
+
+        self.RDPCache_dir = Path(os.path.join(self.kape_dir, "RDPCache"))
+        triageutils.create_directory_path(path=self.RDPCache_dir, logger=self.logger)
 
     @triageutils.LOG
     def extract_zip(self, archive=None, dest=None, specific_files=[], logger=None):
@@ -250,7 +248,7 @@ class Plugin(BasePlugin):
     @triageutils.LOG
     def check_docker_image(
         self,
-        image_name="dockerhub.cert.lan/log2timeline/plaso",
+        image_name="log2timeline/plaso",
         tag="20230717",
         logger=None,
     ):
@@ -517,91 +515,29 @@ class Plugin(BasePlugin):
             raise e
 
     @triageutils.LOG
-    def get_iis_logs(self, iis_folder=None, logger=None) -> list:
+    def get_iis_logs(self, logger: Logger) -> list:
         """Copie les fichiers de logs du serveur IIS présents dans le dossier vers le dossier partagé.
         Args:
-            iis_folder (str): optionnel chemin du dossier
+            logger (Logger): Logger de l'instance en cours
         Returns:
             un tableau contenant le nom de tous les fichiers trouvés
         """
         records = []
         pattern = ".log"
-        if not iis_folder:
-            for letter in [
-                "a",
-                "b",
-                "c",
-                "d",
-                "e",
-                "f",
-                "g",
-                "h",
-                "i",
-                "j",
-                "k",
-                "l",
-                "m",
-                "n",
-                "o",
-                "p",
-                "q",
-                "r",
-                "s",
-                "t",
-                "u",
-                "v",
-                "w",
-                "x",
-                "y",
-                "z",
-                "A",
-                "B",
-                "C",
-                "D",
-                "E",
-                "F",
-                "G",
-                "H",
-                "I",
-                "J",
-                "K",
-                "L",
-                "M",
-                "N",
-                "O",
-                "P",
-                "Q",
-                "R",
-                "S",
-                "T",
-                "U",
-                "V",
-                "W",
-                "X",
-                "Y",
-                "Z",
-            ]:
-                if triageutils.directory_exists(
-                    dir=os.path.join(self.mount_point, letter), logger=self.logger
-                ):
-                    iis_folder = os.path.join(
-                        self.mount_point, letter, "inetpub", "logs", "LogFiles"
-                    )
-                    if triageutils.directory_exists(dir=iis_folder, logger=self.logger):
-                        triageutils.copy_directory(
-                            src=iis_folder, dst=self.iis_share, logger=self.logger
-                        )
-                    break
-        else:
-            if triageutils.directory_exists(dir=iis_folder, logger=self.logger):
-                triageutils.copy_directory(
-                    src=iis_folder, dst=self.iis_share, logger=self.logger
-                )
-        records.extend(
-            triageutils.search_files(
-                src=self.iis_share, pattern=pattern, logger=self.logger
-            )
+
+        iis_folder = triageutils.get_folder_path_by_name(
+            folder_name="inetpub", root=self.mount_point
         )
+
+        if iis_folder:
+            triageutils.copy_directory(
+                src=iis_folder, dst=self.iis_share, logger=self.logger
+            )
+            records.extend(
+                triageutils.search_files_by_extension(
+                    dir=self.iis_share, extension=pattern, logger=self.logger
+                )
+            )
         return records
 
     @triageutils.LOG
@@ -867,6 +803,68 @@ class Plugin(BasePlugin):
             raise ex
 
     @triageutils.LOG
+    def kape_get_RDPCache(self, logger: Logger):
+        try:
+            for _d in [f for f in self.RDPCache_dir.iterdir() if f.is_dir()]:
+                triageutils.delete_directory(src=_d, logger=self.logger)
+            # Get BMC files
+            for _f in triageutils.search_files_by_extension_generator(
+                src=self.zip_destination,
+                extension=".bmc",
+                patterninpath="Terminal Server Client",
+            ):
+                try:
+                    _username = _f.parts[_f.parts.index("Users") + 1]
+                except Exception as errorname:
+                    self.error(f"{errorname}")
+                    _username = time.time()
+                _dst = self.RDPCache_dir / Path(f"{_username}")
+                triageutils.copy_file(
+                    src=_f, dst=_dst, overwrite=True, logger=self.logger
+                )
+            # Get BIN files
+            for _f in triageutils.search_files_by_extension_generator(
+                src=self.zip_destination,
+                extension=".bin",
+                patterninpath="Terminal Server Client",
+            ):
+                try:
+                    _username = _f.parts[_f.parts.index("Users") + 1]
+                except Exception as errorname:
+                    self.error(f"{errorname}")
+                    _username = time.time()
+                _dst = self.RDPCache_dir / Path(f"{_username}")
+                triageutils.copy_file(
+                    src=_f, dst=_dst, overwrite=True, logger=self.logger
+                )
+            # Exec parser on subdirectories
+            for _d in [f for f in self.RDPCache_dir.iterdir() if f.is_dir()]:
+                try:
+                    _extract_folder = _d / Path("parsed")
+                    triageutils.create_directory_path(
+                        path=_extract_folder, logger=self.logger
+                    )
+                    _bmcc = BMCContainer(logger=self.logger)
+                    for _cache_file in [
+                        _temp_file
+                        for _temp_file in _d.iterdir()
+                        if _temp_file.is_file()
+                    ]:
+                        self.logger.info(
+                            f"[kape_get_RDPCache] Processing file: {_cache_file}"
+                        )
+                        if _bmcc.b_import(_cache_file):
+                            _bmcc.b_process()
+                            _bmcc.b_export(_extract_folder)
+                            _bmcc.b_flush()
+                except Exception as ex:
+                    self.error(f"[bmcc] {str(ex)}")
+
+        except Exception as ex:
+            self.error(f"[kape_get_RDPCache] {str(ex)}")
+            raise ex
+
+    @triageutils.LOG
     def run(self, logger: Logger):
         """Fonction principale qui exécute tout le triage de kape
 
@@ -876,6 +874,9 @@ class Plugin(BasePlugin):
 
         """
         try:
+            self.update_workflow_status(
+                plugin="kape", module="plugin", status=Status.STARTED
+            )
             self.extract_zip(
                 archive=self.zipfile, dest=self.zip_destination, logger=self.logger
             )
@@ -888,86 +889,214 @@ class Plugin(BasePlugin):
                 )
             except Exception as ex:
                 self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"].get("evtx", False):
+            if self.config["run"]["kape"].setdefault("evtx", False):
                 self.info("[KAPE] Run EVTX")
+                self.update_workflow_status(
+                    plugin="kape", module="evtx", status=Status.STARTED
+                )
                 try:
                     if self.config["run"]["kape"]["winlogbeat"]:
+                        self.update_workflow_status(
+                            plugin="kape", module="winlogbeat", status=Status.STARTED
+                        )
                         evtx_logs = self.get_evtx(logger=self.logger)
                         if self.is_winlogbeat_active:
                             self.send_logs_to_winlogbeat(
                                 evtx_logs=evtx_logs, logger=self.logger
                             )
+                        self.update_workflow_status(
+                            plugin="kape", module="winlogbeat", status=Status.FINISHED
+                        )
                     else:
                         self.kape_parse_evtx(logger=self.logger)
-                        self.info("[kape] EVTX process done")
+                    self.update_workflow_status(
+                        plugin="kape", module="evtx", status=Status.FINISHED
+                    )
                 except Exception as ex:
+                    self.update_workflow_status(
+                        plugin="kape", module="evtx", status=Status.ERROR
+                    )
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"].get("registry", False):
+            if self.config["run"]["kape"].setdefault("registry", False):
                 try:
                     self.info("[KAPE] Run Registry")
+                    self.update_workflow_status(
+                        plugin="kape", module="registry", status=Status.STARTED
+                    )
                     self.kape_parse_registry(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="registry", status=Status.FINISHED
+                    )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"].get("mft", False):
+                    self.update_workflow_status(
+                        plugin="kape", module="registry", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("mft", False):
                 try:
                     self.info("[KAPE] Run MFT")
+                    self.update_workflow_status(
+                        plugin="kape", module="mft", status=Status.STARTED
+                    )
                     self.kape_parse_mft(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="mft", status=Status.FINISHED
+                    )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"].get("usnjrnl", False):
+                    self.update_workflow_status(
+                        plugin="kape", module="mft", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("usnjrnl", False):
                 try:
                     self.info("[KAPE] Run UsnJrnl")
+                    self.update_workflow_status(
+                        plugin="kape", module="usnjrnl", status=Status.STARTED
+                    )
                     self.kape_parse_usnjrnl(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="usnjrnl", status=Status.FINISHED
+                    )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"].get("prefetch", False):
+                    self.update_workflow_status(
+                        plugin="kape", module="usnjrnl", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("prefetch", False):
                 try:
                     self.info("[kape] Run Prefetch")
+                    self.update_workflow_status(
+                        plugin="kape", module="prefetch", status=Status.STARTED
+                    )
                     self.kape_parse_prefetch(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="prefetch", status=Status.FINISHED
+                    )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"].get("mplog", False):
+                    self.update_workflow_status(
+                        plugin="kape", module="prefetch", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("mplog", False):
                 try:
                     self.info("[kape] Run MPLog")
+                    self.update_workflow_status(
+                        plugin="kape", module="mplog", status=Status.STARTED
+                    )
                     self.kape_parse_mplog(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="mplog", status=Status.FINISHED
+                    )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"].get("activitiescache", False):
+                    self.update_workflow_status(
+                        plugin="kape", module="mplog", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("activitiescache", False):
                 try:
                     self.info("[kape] Run ActivitiesCache")
+                    self.update_workflow_status(
+                        plugin="kape", module="activitiescache", status=Status.STARTED
+                    )
                     self.kape_parse_activitiescache(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="activitiescache", status=Status.FINISHED
+                    )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"].get("recyclebin", False):
-                self.info("[kape] Run Recycle Bin")
+                    self.update_workflow_status(
+                        plugin="kape", module="activitiescache", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("recyclebin", False):
                 try:
+                    self.info("[kape] Run Recycle Bin")
+                    self.update_workflow_status(
+                        plugin="kape", module="recyclebin", status=Status.STARTED
+                    )
                     self.kape_parse_recyclebin(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="recyclebin", status=Status.FINISHED
+                    )
                 except Exception as err_reg:
                     self.error(f"[kape ERROR] {str(err_reg)}")
-            if self.config["run"]["kape"].get("psreadline", False):
-                self.info("[kape] Run PSReadline")
+                    self.update_workflow_status(
+                        plugin="kape", module="recyclebin", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("psreadline", False):
                 try:
+                    self.info("[kape] Run PSReadline")
+                    self.update_workflow_status(
+                        plugin="kape", module="psreadline", status=Status.STARTED
+                    )
                     self.kape_get_consolehost_history(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="psreadline", status=Status.FINISHED
+                    )
                 except Exception as err_reg:
                     self.error(f"[kape ERROR] {str(err_reg)}")
-            if self.config["run"]["kape"].get("iis", False):
+                    self.update_workflow_status(
+                        plugin="kape", module="psreadline", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("rdpcache", False):
+                try:
+                    self.info("[kape] Run RDPCache")
+                    self.update_workflow_status(
+                        plugin="kape", module="rdpcache", status=Status.STARTED
+                    )
+                    self.kape_get_RDPCache(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="rdpcache", status=Status.FINISHED
+                    )
+                except Exception as err_rdp:
+                    self.error(f"[kape ERROR] {str(err_rdp)}")
+                    self.update_workflow_status(
+                        plugin="kape", module="rdpcache", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("iis", False):
                 try:
                     self.info("[KAPE] Run IIS")
+                    self.update_workflow_status(
+                        plugin="kape", module="iis", status=Status.STARTED
+                    )
                     res = self.get_iis_logs(logger=self.logger)
                     if self.is_logstash_active:
                         self.send_iis_logs(iis_logs=res, logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="iis", status=Status.FINISHED
+                    )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
-            if self.config["run"]["kape"].get("timeline", False):
-                self.info("[KAPE] Run PLASO")
-                self.check_docker_image(
-                    image_name=self.docker_images["plaso"]["image"],
-                    tag=self.docker_images["plaso"]["tag"],
-                    logger=self.logger,
-                )
-                self.generate_mft_timeline(logger=self.logger)
-                self.generate_winarts_timeline(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="iis", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("timeline", False):
+                try:
+                    self.info("[KAPE] Run PLASO")
+                    self.update_workflow_status(
+                        plugin="kape", module="timeline", status=Status.STARTED
+                    )
+                    self.check_docker_image(
+                        image_name=self.docker_images["plaso"]["image"],
+                        tag=self.docker_images["plaso"]["tag"],
+                        logger=self.logger,
+                    )
+                    self.generate_mft_timeline(logger=self.logger)
+                    self.generate_winarts_timeline(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="timeline", status=Status.FINISHED
+                    )
+                except Exception as ex:
+                    self.error(f"[Kape ERROR] {str(ex)}")
+                    self.update_workflow_status(
+                        plugin="kape", module="timeline", status=Status.ERROR
+                    )
+            self.update_workflow_status(
+                plugin="kape", module="plugin", status=Status.FINISHED
+            )
         except Exception as ex:
+            self.update_workflow_status(
+                plugin="kape", module="plugin", status=Status.ERROR
+            )
             self.error(f"[KAPE ERROR] {str(ex)}")
             self.info("Exception so kill my running containers")
             self.kill_docker_container(logger=self.logger)

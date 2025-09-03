@@ -146,6 +146,7 @@ def delete_sketch_by_id(id: int = 0) -> bool:
                 _res &= sketch.delete()
                 LOGGER.info(f"[delete_sketch_by_id] Delete sketch {_res} ")
                 return _res
+            return False
         else:
             LOGGER.error("[delete_sketch_by_id] TS is NONE")
             return False
@@ -376,7 +377,7 @@ def chmod_file(file_path: str = "", mode: int = 0) -> bool:
 
 
 @LOG
-def check_connection(ip: str = "elk.cert.lan", port: int = 0) -> bool:
+def check_connection(ip: str = "", port: int = 0) -> bool:
     try:
         if ip.startswith("http"):
             ip = ip.split("//")[1]

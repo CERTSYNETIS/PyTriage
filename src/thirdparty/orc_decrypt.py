@@ -311,12 +311,12 @@ def decrypt_archive_python(
     # We should now have all our octet strings providing encrypted
     # content after a A0 80
     content_offset = iv_offset + ivlen + 2
-    if s[content_offset : content_offset + 2] != b"\xA0\x80":
+    if s[content_offset : content_offset + 2] != b"\xa0\x80":
         log.error(
             "File does not match what we expected (\\xA0\\x80) at offset %d: %s. Found at %d",
             content_offset,
             s[content_offset - 10 : content_offset + 20].hex(),
-            s[813:].find(b"\xA0\x80"),
+            s[813:].find(b"\xa0\x80"),
         )
         return False
 

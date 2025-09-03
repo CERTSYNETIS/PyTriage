@@ -566,9 +566,11 @@ class MftRecord:
     def to_csv(self) -> List[Union[str, int]]:
         row = [
             self.recordnum,
-            "Valid"
-            if self.magic == int.from_bytes(MFT_RECORD_MAGIC, BYTE_ORDER)
-            else "Invalid",
+            (
+                "Valid"
+                if self.magic == int.from_bytes(MFT_RECORD_MAGIC, BYTE_ORDER)
+                else "Invalid"
+            ),
             "In Use" if self.flags & FILE_RECORD_IN_USE else "Not in Use",
             self.get_file_type(),
             self.seq,

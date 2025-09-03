@@ -1,6 +1,26 @@
+import os, yaml
 from logging import basicConfig, getLogger, Logger, FileHandler, Formatter, INFO
-from .triageutils import INTERNAL_CONFIG
 
+# from .triageutils import INTERNAL_CONFIG
+
+
+def read_config(conf="") -> dict:
+    """Lecture du fichier de configuration
+
+    Args:
+        conf (str): chemin du fichier yaml
+    Returns:
+        un dictionnaire contenant les informations du yaml
+    """
+    with open(conf, "r") as stream:
+        try:
+            d = yaml.safe_load(stream)
+            return d
+        except yaml.YAMLError as ex:
+            raise (ex)
+
+
+INTERNAL_CONFIG = read_config(os.path.join("config", "triage.yaml"))
 LOG_FOLDER = INTERNAL_CONFIG["general"]["logfolder"]  # /log"
 
 basicConfig(

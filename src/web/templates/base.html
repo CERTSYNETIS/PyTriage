@@ -8,11 +8,17 @@
     />
     <meta name="description" content="triage synetis" />
     <meta name="keywords" content="synetis" />
-
+    <link 
+      href="{{ url_for('static', filename='css/select.dataTables.css') }}" 
+      rel="stylesheet"
+      type="text/css"
+      crossorigin="anonymous"
+    />
     <link
       href="{{ url_for('static', filename='css/bootstrap.min.css') }}"
       rel="stylesheet"
       type="text/css"
+      crossorigin="anonymous"
     />
     <script src="{{ url_for('static', filename='js/popper.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/bootstrap.js') }}"></script>
@@ -21,6 +27,9 @@
     <script src="{{ url_for('static', filename='js/dataTables.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dataTables.bootstrap5.js') }}"></script>
     <script src="{{ url_for('static', filename='js/functions.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dataTables.select.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/select.dataTables.js') }}"></script>
+    
     <link
       rel="icon"
       type="image/png"
@@ -50,6 +59,57 @@
         background-color: #fbfbfb;
         z-index: 99;
       }
+      .workflow_status_finished::before {
+        background-color: #94e185;
+        box-shadow: 0 0 5px 1px #94e185;
+        width: 7px;
+        height: 7px;
+        border-radius: 7px;
+        content: " ";
+        display: inline-block;
+        margin-right: 10px;
+      }
+
+      .workflow_status_started::before {
+        background-color: #6ba4f7;
+        box-shadow: 0 0 5px 1px #279ceb;
+        width: 7px;
+        height: 7px;
+        border-radius: 7px;
+        content: " ";
+        display: inline-block;
+        margin-right: 10px;
+      }
+      .workflow_status_off::before{
+        background-color: #8e8e8f;
+        box-shadow: 0 0 5px 1px #666768;
+        width: 7px;
+        height: 7px;
+        border-radius: 7px;
+        content: " ";
+        display: inline-block;
+        margin-right: 10px;
+      }
+      .workflow_status_pending::before{
+        background-color: #ffc107;
+        box-shadow: 0 0 5px 1px #f3d475;
+        width: 7px;
+        height: 7px;
+        border-radius: 7px;
+        content: " ";
+        display: inline-block;
+        margin-right: 10px;
+      }
+      .workflow_status_error::before {
+        background-color: #f82121;
+        box-shadow: 0 0 5px 1px #f84141;
+        width: 7px;
+        height: 7px;
+        border-radius: 7px;
+        content: " ";
+        display: inline-block;
+        margin-right: 10px;
+      }
     </style>
   </head>
   <body class="bg-light" style="margin-bottom: 50px">
@@ -58,11 +118,11 @@
       data-bs-theme="dark"
     > -->
     <nav
-      class="navbar navbar-expand-lg"
+      class="navbar navbar-expand"
       style="border-bottom: solid 2px #d2d2d2;"
     >
       <div class="container-fluid">
-        <a class="navbar-brand" href="#" onclick="reset_form()">
+        <a class="navbar-brand" href="/">
           <img
             src="{{ url_for('static', filename='images/cert.png') }}"
             alt="Bootstrap"
@@ -94,37 +154,30 @@
             </li>
             <li class="nav-item"></li>
           </ul>
-          <a
-            class="btn btn-link"
-            data-bs-toggle="tooltip"
-            data-bs-placement="bottom"
-            data-bs-title="Admin page"
-            href="/admin"
-            ><svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              class="bi bi-person-lock"
-              viewBox="0 0 16 16"
-            >
-              <path
-                d="M11 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0M8 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4m0 5.996V14H3s-1 0-1-1 1-4 6-4q.845.002 1.544.107a4.5 4.5 0 0 0-.803.918A11 11 0 0 0 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664zM9 13a1 1 0 0 1 1-1v-1a2 2 0 1 1 4 0v1a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1zm3-3a1 1 0 0 0-1 1v1h2v-1a1 1 0 0 0-1-1"
-              /></svg
-          ></a>
-          <button
-            tabindex="0"
-            class="btn btn-outline-primary btn-sm"
-            type="button"
-            data-bs-toggle="popover"
-            data-bs-html="true"
-            data-bs-trigger="focus"
-            data-bs-custom-class="custom-popover"
-            data-bs-title="Adresses utiles"
-            data-bs-content="Timesketch: <a href='{{timesketchurl}}'target='_blank'>{{timesketchurl}}</a><br>ELK: <a href='{{elkurl}}'target='_blank'>{{elkurl}}</a>"
-          >
-            infos
-          </button>
+          
+          <ul class="navbar-nav flex-row flex-wrap ms-md-auto">
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle"
+                href="#"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                {{ current_user.username }}
+              </a>
+              <ul
+                id="userinfos"
+                class="dropdown-menu dropdown-menu-end"
+                style="max-height: 400px; overflow-y: auto; overflow-x: hidden"
+              >
+              {% if current_user.admin %}
+                <li><a class="dropdown-item d-flex align-center" href="/admin">Administration</a></li>
+              {% endif %}
+              <li><a class="dropdown-item d-flex align-center" href="/logout">Logout</a></li>
+            </ul>
+            </li>
+          </ul>
         </div>
       </div>
     </nav>
@@ -205,10 +258,17 @@
     >
       <!-- position-static position-relative -->
     </div>
-
-    {% block all_logs %} {% endblock %}
   </body>
 
   {% block script %} {% endblock %}
 
+  <script>
+    $(document).ready(function () {
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          generate_toast("globalflash_" + Date.now(), "{{ message }}", "{{ category }}")
+        {% endfor %}
+      {% endwith %}
+    });
+  </script>
 </html>

@@ -2,12 +2,40 @@ import os
 import logging
 import yaml
 import pkg_resources
+import secrets
+from functools import wraps
 from datetime import datetime
 from src.thirdparty import triageutils
 from src.thirdparty import admin_utils
 from src.thirdparty.AESCipher import AESCipher
 from src.thirdparty.logging import get_logger
-from flask import Flask, render_template, request, jsonify, send_file
+from src.thirdparty.keycloak.keycloak_utils import (
+    get_auth_url,
+    exchange_code_for_token,
+    decode_id_token,
+    get_user_info,
+    validate_token,
+    keycloak_logout,
+)
+from src.thirdparty.keycloak.user import User
+from flask import (
+    Flask,
+    render_template,
+    request,
+    jsonify,
+    send_file,
+    session,
+    redirect,
+    url_for,
+    flash,
+)
+from flask_login import (
+    LoginManager,
+    login_user,
+    login_required,
+    logout_user,
+    current_user,
+)
 from werkzeug.utils import secure_filename
 import hashlib
 import uuid
@@ -17,24 +45,46 @@ from slugify import slugify
 from importlib import import_module
 from celery import Celery
 from celery.result import AsyncResult
+import requests
 
-
+# --- GLOBALS ---
 INTERNAL_CONFIG = triageutils.INTERNAL_CONFIG
 UPLOAD_FOLDER = INTERNAL_CONFIG["general"]["upload"]  # /data"
 LOG_FOLDER = INTERNAL_CONFIG["general"]["logfolder"]  # /log"
+USE_KEYCLOAK = os.getenv("USE_KEYCLOAK", "False").lower() == "true"
+KEYCLOAK_USERS_GROUP = os.getenv("KEYCLOAK_USERS_GROUP", "cert").lower()
+KEYCLOAK_ADMIN_GROUP = os.getenv("KEYCLOAK_ADMIN_GROUP", "admin").lower()
+ADMIN_LOGGER = get_logger(name="admin")
 
+# --- Config CELERY ---
 celery = Celery(__name__)
-celery.conf.broker_url = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
-celery.conf.result_backend = os.environ.get(
-    "CELERY_RESULT_BACKEND", "redis://redis:6379/0"
-)
+celery.conf.broker_url = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")  # type: ignore
+celery.conf.result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/0")  # type: ignore
 celery.conf.task_track_started = True
 celery.conf.result_persistent = True
 
+# --- Config FLASK & FLASK Login ---
 app = Flask(__name__)
+app.config["SECRET_KEY"] = secrets.token_hex(32)
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"  # type: ignore #route de login
 
 
-def recursive_items(dictionary=None):
+# --- Check Admin Decorator ---
+def admin_required(func):
+    @wraps(func)
+    def decorated_view(*args, **kwargs):
+        if not current_user.admin:
+            flash(f"User is not allowed to go there")
+            return redirect(url_for("home"))
+        else:
+            return func(*args, **kwargs)
+
+    return decorated_view
+
+
+def recursive_items(dictionary: dict):
     for key, value in dictionary.items():
         if type(value) is dict:
             yield (key, value)
@@ -43,7 +93,7 @@ def recursive_items(dictionary=None):
             yield (key, value)
 
 
-def check_config(conf=""):
+def check_config(conf: dict):
     try:
         keys = []
         for k, _ in recursive_items(conf):
@@ -120,22 +170,122 @@ def load_plugin(plugin_name, entry_points):
     raise ValueError(f"No such plugin: {plugin_name}")
 
 
+@app.errorhandler(404)
+def not_found(e):
+    flash("Page not found", "text-bg-warning")
+    return redirect(url_for("home"))
+
+
+@app.errorhandler(401)
+def not_authorized(e):
+    flash("Page Unauthorized", "text-bg-warning")
+    return redirect(url_for("home"))
+
+
+@app.errorhandler(403)
+def page_forbidden(e):
+    flash("Page Forbidden", "text-bg-warning")
+    return redirect(url_for("home"))
+
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    flash("Internal server error.... Check logs !", "text-bg-danger")
+    return redirect(url_for("home"))
+
+
 @app.route("/", methods=["GET"])
+@login_required
 def home():
-    admin_get_ts_status()
-    return render_template(
-        "index.html",
-        timesketchurl=INTERNAL_CONFIG["administration"]["Timesketch"]["url"],
-        elkurl=INTERNAL_CONFIG["administration"]["Kibana"]["url"],
-    )
+    # admin_get_ts_status()
+    return render_template("index.html")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if USE_KEYCLOAK:
+        if request.method == "GET":
+            return redirect(url_for("connect"))
+        elif request.method == "POST":
+            try:
+                keycloak_url = get_auth_url()
+            except Exception as ex:
+                keycloak_url = ""
+                flash(f"{ex}", "text-bg-danger")
+            if keycloak_url:
+                return redirect(keycloak_url)
+            else:
+                return redirect(url_for("logout"))
+        return redirect(url_for("logout"))
+    else:
+        user = User(
+            user_id=str(uuid.uuid4()),
+            username="Guest",
+            email="jd@jd.com",
+            first_name="John",
+            last_name="Doe",
+            groups=[KEYCLOAK_ADMIN_GROUP, KEYCLOAK_USERS_GROUP],
+            email_verified=True,
+            validate_token=True,
+            token_expires_in=3600,
+        )
+        session["user_data"] = {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "groups": user.groups,
+            "email_verified": True,
+            "validate_token": True,
+            "token_expires_in": 3600,
+            "access_token": "",
+            "refresh_token": "",
+            "id_token": "",
+        }
+        login_user(user, remember=True)  # connection flasklogin
+        ADMIN_LOGGER.info(f"[login] {user.username} connected !")
+        return redirect(url_for("home"))
+
+
+@app.route("/connect", methods=["GET"])
+def connect():
+    if USE_KEYCLOAK:
+        if current_user.is_authenticated:
+            return redirect(url_for("home"))
+        else:
+            return render_template("connect.html")
+    else:
+        return redirect(url_for("home"))
+
+
+@app.route("/logout", methods=["GET"])
+@login_required
+def logout():
+    try:
+        refresh_token = session["user_data"].get("refresh_token", "")
+        username = session["user_data"].get("username", "")
+        if refresh_token:
+            try:
+                keycloak_logout(refresh_token=refresh_token)
+            except Exception as e:
+                flash(f"{e}", "text-bg-danger")
+        logout_user()
+        session.clear()
+        flash(f"{username} disconnected !")
+        ADMIN_LOGGER.error(f"[logout] {username} disconnected !")
+        return redirect(url_for("connect"))
+    except Exception as ex:
+        flash(f"{ex}", "text-bg-danger")
+        return redirect(url_for("connect"))
 
 
 @app.route("/admin", methods=["GET"])
+@login_required
+@admin_required
 def admin_page():
     return render_template(
         "admin.html",
-        timesketchurl=INTERNAL_CONFIG["administration"]["Timesketch"]["url"],
-        elkurl=INTERNAL_CONFIG["administration"]["Kibana"]["url"],
         is_timesketch_active=INTERNAL_CONFIG["administration"]["Timesketch"]["active"],
         is_elastic_active=INTERNAL_CONFIG["administration"]["Elastic"]["active"],
         is_logstash_active=INTERNAL_CONFIG["administration"]["Logstash"]["active"],
@@ -144,13 +294,14 @@ def admin_page():
 
 
 @app.route("/collecte/<string:uuid>", methods=["GET"])
-def collecte_page(uuid: str = None):
+@login_required
+def collecte_page(uuid: str = ""):
     _opened = True
     if not uuid:
         _config = generate_config()
     else:
         _config = _get_collecte_by_id(uuid=uuid)
-    if not _config.get("uuid", ""):
+    if not _config.setdefault("uuid", ""):
         return home()
     return render_template(
         "collecte_details.html",
@@ -172,6 +323,7 @@ def generate_config() -> dict:
     res["general"]["timesketch_id"] = 0
     res["general"]["replay"] = 0
     res["general"]["auto_close_collecte"] = True
+    res["workflow"] = dict()
     res["path"] = ""
     res["log_file"] = ""
     res["run"] = dict()
@@ -189,6 +341,7 @@ def generate_config() -> dict:
     res["run"]["kape"]["activitiescache"] = False
     res["run"]["kape"]["recyclebin"] = False
     res["run"]["kape"]["psreadline"] = False
+    res["run"]["kape"]["rdpcache"] = False
 
     res["run"]["uac"] = dict()
     res["run"]["uac"]["plugin"] = False
@@ -222,10 +375,14 @@ def generate_config() -> dict:
     res["run"]["generaptor"]["activitiescache"] = False
     res["run"]["generaptor"]["recyclebin"] = False
     res["run"]["generaptor"]["psreadline"] = False
+    res["run"]["generaptor"]["rdpcache"] = False
 
     res["run"]["mail"] = dict()
     res["run"]["mail"]["plugin"] = False
     res["run"]["mail"]["attachments"] = False
+
+    res["run"]["google"] = dict()
+    res["run"]["google"]["plugin"] = False
 
     res["run"]["orc"] = dict()
     res["run"]["orc"]["plugin"] = False
@@ -263,6 +420,7 @@ def generate_config() -> dict:
 
 
 @app.route("/usage", methods=["GET"])
+@login_required
 def get_cpu_memory_usage():
     cpu_usage = psutil.cpu_percent()
     memory_usage = psutil.virtual_memory().percent
@@ -275,6 +433,7 @@ def get_cpu_memory_usage():
 
 
 @app.route("/", methods=["POST"])
+@login_required
 def set_input_files():
     try:
         res = generate_config()
@@ -288,12 +447,8 @@ def set_input_files():
 
         res["uuid"] = collecte_id
         res["general"]["extract"] = ex_dir
-        res["general"]["client"] = (
-            slugify(request.form["client"]) if request.form.get("client") else ""
-        )
-        res["general"]["hostname"] = (
-            slugify(request.form["hostname"]) if request.form.get("hostname") else ""
-        )
+        res["general"]["client"] = slugify(request.form.get("client", ""))
+        res["general"]["hostname"] = slugify(request.form.get("hostname", ""))
         res["general"]["timesketch_id"] = 0
         res["general"]["replay"] = 0
         res["general"]["auto_close_collecte"] = True
@@ -310,7 +465,9 @@ def set_input_files():
             case "kape":
                 ##RUN KAPE
                 res["run"]["kape"]["plugin"] = True
-                res["run"]["kape"]["evtx"] = True if "windows_evtx" in request.form else False
+                res["run"]["kape"]["evtx"] = (
+                    True if "windows_evtx" in request.form else False
+                )
                 if not res["run"]["kape"]["evtx"]:
                     res["run"]["kape"]["winlogbeat"] = False
                     res["run"]["hayabusa"] = False
@@ -321,11 +478,15 @@ def set_input_files():
                     res["run"]["hayabusa"] = (
                         True if "windows_hayabusa" in request.form else False
                     )
-                res["run"]["kape"]["iis"] = True if "windows_iis" in request.form else False
+                res["run"]["kape"]["iis"] = (
+                    True if "windows_iis" in request.form else False
+                )
                 res["run"]["kape"]["registry"] = (
                     True if "windows_registry" in request.form else False
                 )
-                res["run"]["kape"]["mft"] = True if "windows_mft" in request.form else False
+                res["run"]["kape"]["mft"] = (
+                    True if "windows_mft" in request.form else False
+                )
                 res["run"]["kape"]["usnjrnl"] = (
                     True if "windows_usnjrnl" in request.form else False
                 )
@@ -347,6 +508,9 @@ def set_input_files():
                 res["run"]["kape"]["timeline"] = (
                     True if "windows_timeline" in request.form else False
                 )
+                res["run"]["kape"]["rdpcache"] = (
+                    True if "windows_rdpcache" in request.form else False
+                )
             case "uac":
                 ##RUN UAC
                 res["run"]["uac"]["plugin"] = True
@@ -362,6 +526,9 @@ def set_input_files():
                 res["run"]["mail"]["attachments"] = (
                     True if "mail_attachments" in request.form else False
                 )
+            case "google":
+                ##RUN Google PLUGIN
+                res["run"]["google"]["plugin"] = True
             case "volatility":
                 ##RUN VOLATILITY
                 res["run"]["volatility"]["plugin"] = True
@@ -387,7 +554,9 @@ def set_input_files():
                 ##RUN ORC
                 res["run"]["orc"]["plugin"] = True
                 res["run"]["orc"]["private_key_file"] = ""
-                res["run"]["orc"]["evtx"] = True if "windows_evtx" in request.form else False
+                res["run"]["orc"]["evtx"] = (
+                    True if "windows_evtx" in request.form else False
+                )
                 if not res["run"]["orc"]["evtx"]:
                     res["run"]["orc"]["winlogbeat"] = False
                     res["run"]["hayabusa"] = False
@@ -398,11 +567,15 @@ def set_input_files():
                     res["run"]["hayabusa"] = (
                         True if "windows_hayabusa" in request.form else False
                     )
-                res["run"]["orc"]["iis"] = True if "windows_iis" in request.form else False
+                res["run"]["orc"]["iis"] = (
+                    True if "windows_iis" in request.form else False
+                )
                 res["run"]["orc"]["registry"] = (
                     True if "windows_registry" in request.form else False
                 )
-                res["run"]["orc"]["mft"] = True if "windows_mft" in request.form else False
+                res["run"]["orc"]["mft"] = (
+                    True if "windows_mft" in request.form else False
+                )
                 res["run"]["orc"]["usnjrnl"] = (
                     True if "windows_usnjrnl" in request.form else False
                 )
@@ -428,9 +601,9 @@ def set_input_files():
                     l.error(
                         f"[set_input_files] ORC private key file upload error: {file_error}"
                     )
-                    res[
-                        "error"
-                    ] = f"[set_input_files] ORC private key file upload error: {file_error}"
+                    res["error"] = (
+                        f"[set_input_files] ORC private key file upload error: {file_error}"
+                    )
             case "adaudit":
                 ##RUN ADAUDIT
                 res["run"]["adaudit"]["plugin"] = True
@@ -495,6 +668,9 @@ def set_input_files():
                 res["run"]["generaptor"]["linux"] = (
                     True if "generaptor_linux" in request.form else False
                 )
+                res["run"]["generaptor"]["rdpcache"] = (
+                    True if "windows_rdpcache" in request.form else False
+                )
                 try:
                     if "generaptor_private_key_file" in request.files:
                         if request.files["generaptor_private_key_file"]:
@@ -510,11 +686,29 @@ def set_input_files():
                     l.error(
                         f"[set_input_files] GENERAPTOR private key file upload error: {file_error}"
                     )
-                    res[
-                        "error"
-                    ] = f"[set_input_files] GENERAPTOR private key file upload error: {file_error}"
+                    res["error"] = (
+                        f"[set_input_files] GENERAPTOR private key file upload error: {file_error}"
+                    )
             case _:
                 raise Exception("No valid plugin selected")
+        if _selected_plugin in ["adtimeline", "o365"]:
+            res["workflow"][_selected_plugin] = {"status": "pending"}
+        else:
+            res["workflow"][_selected_plugin] = {
+                key: {"status": "pending"}
+                for key, value in res["run"][_selected_plugin].items()
+                if value is True
+            }
+            res["workflow"][_selected_plugin].update(
+                {
+                    key: {"status": "off"}
+                    for key, value in res["run"][_selected_plugin].items()
+                    if value is False
+                }
+            )
+        if res["run"]["hayabusa"]:
+            res["workflow"]["hayabusa"] = {"status": "pending"}
+
         try:
             uploaded_file = request.files["archive"]
             filename = secure_filename(uploaded_file.filename)
@@ -557,7 +751,9 @@ def set_input_files():
                     )
             else:
                 res["general"]["timesketch_id"] = 0
-                l.info("[set_input_files] Plugin timeline not selected -> no sketch")
+                l.info(
+                    "[set_input_files] Plugin timeline selected but TS not activated"
+                )
         except Exception as ex:
             res["general"]["timesketch_id"] = 0
             res["run"]["kape"]["timeline"] = False
@@ -571,24 +767,30 @@ def set_input_files():
                 f'[set_input_files] Config file created: {os.path.join(ex_dir, "config.yaml")}'
             )
     except Exception as err:
-        l.error(f"[set_input_files] {str(err)}")
+        if l:
+            l.error(f"[set_input_files] {str(err)}")
+        if not res:
+            res = dict()
         res["error"] = f"[set_input_files] {str(err)}"
 
     return jsonify(res)
 
 
 @app.route("/replay", methods=["POST"])
+@login_required
 def replay_collecte():
     try:
+        if not request.json:
+            return jsonify(error=f"[replay_collecte] No data posted")
         res = generate_config()
         res.update(request.json, sort_keys=False)
         _exec_hayabusa = res["run"]["hayabusa"]
         del res["run"]["hayabusa"]
         res["run"]["hayabusa"] = _exec_hayabusa
         if (
-            not res.get("uuid", None)
-            or not res.get("path", None)
-            or not res.get("log_file", None)
+            not res.setdefault("uuid", None)
+            or not res.setdefault("path", None)
+            or not res.setdefault("log_file", None)
         ):
             return jsonify(error=f"[replay_collecte] Bad data posted -- No UUID")
         l = get_logger(name=res["uuid"])
@@ -634,6 +836,24 @@ def replay_collecte():
         res["general"]["replay"] += 1
         l.info(f"Number Replay: {res['general']['replay']}")
 
+        # Update workflow
+        for plugin in list(res["run"].keys()):
+            if plugin in ["hayabusa", "adtimeline", "o365"]:
+                if res["run"][plugin]:
+                    res["workflow"][plugin] = {"status": "pending"}
+            elif res["run"][plugin]["plugin"]:
+                res["workflow"][plugin] = {
+                    key: {"status": "pending"}
+                    for key, value in res["run"][plugin].items()
+                    if value is True
+                }
+                res["workflow"][plugin].update(
+                    {
+                        key: {"status": "off"}
+                        for key, value in res["run"][plugin].items()
+                        if value is False
+                    }
+                )
         with open(os.path.join(res["path"], "config.yaml"), "w") as config_file:
             yaml.dump(res, config_file, sort_keys=False)
             l.info(
@@ -642,11 +862,13 @@ def replay_collecte():
 
         return jsonify(res)
     except Exception as err:
-        l.error(f"[replay_collecte] {str(err)}")
+        if l:
+            l.error(f"[replay_collecte] {str(err)}")
         return jsonify(error=str(err))
 
 
 @app.route("/standalone_input_file", methods=["POST"])
+@login_required
 def standalone_input_file():
     try:
         collecte_id = str(uuid.uuid4())
@@ -657,12 +879,8 @@ def standalone_input_file():
         res = generate_config()
         res["uuid"] = collecte_id
         res["general"]["extract"] = ex_dir
-        res["general"]["client"] = (
-            slugify(request.form["client"]) if request.form.get("client") else ""
-        )
-        res["general"]["hostname"] = (
-            slugify(request.form["hostname"]) if request.form.get("hostname") else ""
-        )
+        res["general"]["client"] = slugify(request.form.get("client", ""))
+        res["general"]["hostname"] = slugify(request.form.get("hostname", ""))
         res["general"]["timesketch_id"] = 0
         res["general"]["replay"] = 0
         res["general"][
@@ -673,7 +891,7 @@ def standalone_input_file():
 
         res["log_file"] = f"{collecte_id}.log"
 
-        if request.form.get("run_plugin"):
+        if request.form.get("run_plugin", False):
             res["run"]["standalone"]["plugin"] = True
             if request.form["run_plugin"] == "hayabusa":
                 res["run"]["standalone"]["hayabusa"] = True
@@ -685,7 +903,18 @@ def standalone_input_file():
                 res["run"]["standalone"]["forcepoint"] = True
             elif request.form["run_plugin"] == "winlogbeat":
                 res["run"]["standalone"]["winlogbeat"] = True
-
+        res["workflow"]["standalone"] = {
+            key: {"status": "pending"}
+            for key, value in res["run"]["standalone"].items()
+            if value is True
+        }
+        res["workflow"]["standalone"].update(
+            {
+                key: {"status": "off"}
+                for key, value in res["run"]["standalone"].items()
+                if value is False
+            }
+        )
         try:
             uploaded_file = request.files["archive"]
             filename = secure_filename(uploaded_file.filename)
@@ -714,14 +943,16 @@ def standalone_input_file():
             )
         return jsonify(res)
     except Exception as err:
-        l.error(f"[standalone_input_file] {str(err)}")
+        if l:
+            l.error(f"[standalone_input_file] {str(err)}")
         return jsonify(error=str(err))
 
 
 @app.route("/get_log", methods=["GET"])
+@login_required
 def get_log():
     tail = []
-    log_file = request.args.get("id")  # id de collecte
+    log_file = request.args.get("id", "")  # id de collecte
     if len(log_file.split("-")) != 5:
         return jsonify(error="Bad id given")
     try:
@@ -743,6 +974,7 @@ def get_log():
 
 
 @app.route("/get_all_log_files", methods=["GET"])
+@login_required
 def get_all_log_files():
     try:
         log_files = triageutils.list_directory(
@@ -755,9 +987,10 @@ def get_all_log_files():
 
 
 @app.route("/download_log_file", methods=["GET"])
+@login_required
 def download_log_file():
     try:
-        log_file_name = request.args.get("id")
+        log_file_name = request.args.get("id", "")
         log_file = os.path.join(LOG_FOLDER, log_file_name)
         if triageutils.file_exists(file=log_file, LOGLEVEL="NOLOG"):
             return send_file(path_or_file=log_file, as_attachment=True)
@@ -796,6 +1029,7 @@ def _get_all_opened_collectes():
 
 
 @app.route("/get_all_collectes", methods=["GET"])
+@login_required
 def get_all_collectes():
     try:
         return jsonify(_get_all_opened_collectes())
@@ -837,6 +1071,7 @@ def get_all_clients():
 
 
 @app.route("/get_all_clients_collectes", methods=["GET"])
+@login_required
 def get_all_clients_collectes():
     try:
         res = dict()
@@ -857,15 +1092,15 @@ def get_all_clients_collectes():
                         break
                 if conf_file:
                     temp_conf = triageutils.read_config(conf_file)
-                    if res.get(temp_conf["general"]["client"]):
-                        res[temp_conf["general"]["client"]][
-                            temp_conf["uuid"]
-                        ] = temp_conf["general"]["hostname"]
+                    if res.setdefault(temp_conf["general"]["client"], ""):
+                        res[temp_conf["general"]["client"]][temp_conf["uuid"]] = (
+                            temp_conf["general"]["hostname"]
+                        )
                     else:
                         res[temp_conf["general"]["client"]] = dict()
-                        res[temp_conf["general"]["client"]][
-                            temp_conf["uuid"]
-                        ] = temp_conf["general"]["hostname"]
+                        res[temp_conf["general"]["client"]][temp_conf["uuid"]] = (
+                            temp_conf["general"]["hostname"]
+                        )
         return jsonify(res)
     except Exception as err:
         res = dict()
@@ -874,9 +1109,10 @@ def get_all_clients_collectes():
 
 
 @app.route("/get_collecte", methods=["GET"])
+@login_required
 def get_collecte_by_id():
     try:
-        collecte_id = request.args.get("id")
+        collecte_id = request.args.get("id", "")
         res = dict()
         res = _get_collecte_by_id(uuid=collecte_id)
         if "uuid" not in res:
@@ -984,10 +1220,10 @@ def _open_collecte_by_id(uuid: str = "") -> dict:
 
 
 @celery.task(name="start_triage")
-def start_triage(config=None):
+def start_triage(config: dict = {}):
     try:
         if config:
-            if not config.get("uuid", ""):
+            if not config.setdefault("uuid", ""):
                 raise Exception("UUID not set")
             l = get_logger(name=config["uuid"])
             config["task_id"] = start_triage.request.id
@@ -1026,20 +1262,20 @@ def start_triage(config=None):
             except Exception as err:
                 l.error(f"[start_triage plugins]: {err}")
             finally:
-                config = None
+                config = dict()
                 l.info("========================= END task =========================")
         else:
             raise Exception("Archive or Config or Path is None")
     except Exception as ex:
-        l = get_logger(name="admin")
-        l.error(f"[start_triage ERROR]: {ex}")
+        ADMIN_LOGGER.error(f"[start_triage ERROR]: {ex}")
 
 
 @app.route("/open_collecte_by_id", methods=["GET"])
+@login_required
 def open_collecte_by_id(collecte_id: str = ""):
     try:
         if request.method == "GET":
-            collecte_id = request.args.get("id")
+            collecte_id = request.args.get("id", "")
         res = dict()
         l = get_logger(name=collecte_id)
 
@@ -1060,12 +1296,13 @@ def open_collecte_by_id(collecte_id: str = ""):
 
 
 @app.route("/download", methods=["GET"])
+@login_required
 def download_collecte_by_id():
     try:
-        collecte_id = request.args.get("id")
+        collecte_id = request.args.get("id", "")
         res = dict()
         res = _get_collecte_by_id(uuid=collecte_id)
-        if not res.get("uuid", ""):
+        if not res.setdefault("uuid", ""):
             raise Exception("[download_collecte_by_id] No config file found")
         collecte_file = os.path.join(res["path"], res["archive"]["name"])
 
@@ -1083,10 +1320,11 @@ def download_collecte_by_id():
 
 
 @app.route("/results/<string:uuid>", methods=["GET"])
+@login_required
 def download_result_file(uuid: str):
     try:
         res = _get_collecte_by_id(uuid=uuid)
-        if not res.get("uuid", ""):
+        if not res.setdefault("uuid", ""):
             raise Exception("[download_result_file] No config file found")
         _path = os.path.join(
             res["general"]["extract"],
@@ -1105,6 +1343,7 @@ def download_result_file(uuid: str):
 
 
 @app.route("/get_running_collectes", methods=["GET"])
+@login_required
 def get_running_collectes():
     try:
         res = _get_running_collectes()
@@ -1122,12 +1361,14 @@ def _get_running_collectes():
         res["running"] = list()
         for _values in _tasks.values():
             for _v in _values:
-                _arg = _v.get("args", [])[0]
+                _arg = _v.setdefault("args", [])[0]
                 if _arg:
-                    _client = _arg.get("general", {}).get("client", "")
-                    _hostname = _arg.get("general", {}).get("hostname", "")
-                    _task_id = _arg.get("task_id", "")
-                    _uuid = _arg.get("uuid", "")
+                    _client = _arg.setdefault("general", {}).setdefault("client", "")
+                    _hostname = _arg.setdefault("general", {}).setdefault(
+                        "hostname", ""
+                    )
+                    _task_id = _arg.setdefault("task_id", "")
+                    _uuid = _arg.setdefault("uuid", "")
                     res["running"].append(
                         {
                             "client": _client,
@@ -1144,9 +1385,10 @@ def _get_running_collectes():
 
 
 @app.route("/get_collecte_status", methods=["GET"])
+@login_required
 def get_collecte_status():
     try:
-        task_id = request.args.get("task_id")
+        task_id = request.args.get("task_id", "")
         task_result = AsyncResult(task_id)
         return jsonify(
             {
@@ -1187,13 +1429,14 @@ def _get_collecte_status(task_id: str):
 
 
 @app.route("/process", methods=["POST"])
+@login_required
 def process(collecte_id: str = ""):
     try:
-        if request.method == "POST":
-            collecte_id = request.json["uuid"] if request.json.get("uuid") else "None"
+        if request.method == "POST" and request.json:
+            collecte_id = request.json.get("uuid", "")
         res = dict()
         res = _get_collecte_by_id(uuid=collecte_id)
-        if not res.get("uuid", ""):
+        if not res.setdefault("uuid", ""):
             raise Exception("No config file found for given ID")
         l = get_logger(name=collecte_id)
         l.info("========================= START task =========================")
@@ -1204,6 +1447,8 @@ def process(collecte_id: str = ""):
 
 
 @app.route("/admincollectes", methods=["GET"])
+@login_required
+@admin_required
 def admin_get_collectes():
     try:
         cols = _get_admin_collectes()
@@ -1213,34 +1458,33 @@ def admin_get_collectes():
 
 
 @app.route("/admindeletecollecte", methods=["POST"])
+@login_required
+@admin_required
 def admin_delete_collectes():
     try:
-        admin_logger = get_logger(name="admin")
         uuid = None
-        if request.method == "POST":
-            uuid = request.json["uuid"] if request.json.get("uuid") else None
-            state = request.json["state"] if request.json.get("state") else "None"
-            client = request.json["client"] if request.json.get("client") else "None"
-            hostname = (
-                request.json["hostname"] if request.json.get("hostname") else "None"
-            )
+        if request.method == "POST" and request.json:
+            uuid = request.json.get("uuid", "")
+            state = request.json.get("state", "")
+            client = request.json.get("client", "")
+            hostname = request.json.get("hostname", "")
         if uuid:
             _running_col = _get_running_collectes()
             res = "Collecte is running and cannot be deleted"
             _del = True
-            for _run in _running_col.get("running", []):
-                if _run.get("uuid", "") == uuid:
+            for _run in _running_col.setdefault("running", []):
+                if _run.setdefault("uuid", "") == uuid:
                     _del = False
                     break
             if _del:
                 path = os.path.join(UPLOAD_FOLDER, uuid)
-                if triageutils.delete_directory(src=path, logger=admin_logger):
+                if triageutils.delete_directory(src=path, logger=ADMIN_LOGGER):
                     res = "Collecte deleted successfully"
                 else:
                     res = "Collecte not deleted error"
                 triageutils.delete_file(
                     src=os.path.join(LOG_FOLDER, f"{uuid}.log"),
-                    logger=admin_logger,
+                    logger=ADMIN_LOGGER,
                 )
         else:
             res = "Error on collecte's uuid"
@@ -1273,13 +1517,13 @@ def _get_admin_collectes():
                     hostname = temp_conf["general"]["hostname"]
                     client = temp_conf["general"]["client"]
                     _mtime = os.path.getmtime(conf_file)
-                    mtime = datetime.fromtimestamp(_mtime).strftime("%d/%m/%Y")
+                    mtime = datetime.fromtimestamp(_mtime).strftime("%d/%m/%Y %H:%M:%S")
                     _state = _get_collecte_status(temp_conf["task_id"])
                     res[uuid] = {
                         "client": client,
                         "hostname": hostname,
                         "uuid": uuid,
-                        "state": _state.get("task_status"),
+                        "state": _state.setdefault("task_status", ""),
                         "mtime": mtime,
                     }
 
@@ -1291,6 +1535,8 @@ def _get_admin_collectes():
 
 
 @app.route("/admintimesketchstatus", methods=["GET"])
+@login_required
+@admin_required
 def admin_get_ts_status():
     try:
         _ts = admin_utils.is_timesketch_connected()
@@ -1300,6 +1546,8 @@ def admin_get_ts_status():
 
 
 @app.route("/admintimesketchlistsketchs", methods=["GET"])
+@login_required
+@admin_required
 def admin_get_all_sketchs():
     try:
         _AllSketchs = admin_utils.get_all_sketchs()
@@ -1312,6 +1560,8 @@ def admin_get_all_sketchs():
 
 
 @app.route("/adminelasticstatus", methods=["GET"])
+@login_required
+@admin_required
 def admin_get_elastic_status():
     try:
         _elastic = admin_utils.is_elastic_connected()
@@ -1321,6 +1571,8 @@ def admin_get_elastic_status():
 
 
 @app.route("/adminelasticlistindices", methods=["GET"])
+@login_required
+@admin_required
 def admin_get_all_indices():
     try:
         _AllIndices = admin_utils.get_all_indices()
@@ -1333,10 +1585,12 @@ def admin_get_all_indices():
 
 
 @app.route("/admindeletesketch", methods=["POST"])
+@login_required
+@admin_required
 def admin_delete_sketch(id: int = 0):
     try:
-        if request.method == "POST":
-            id = request.json["id"] if int(request.json.get("id")) else 0
+        if request.method == "POST" and request.json:
+            id = int(request.json.get("id", 0))
         res = admin_utils.delete_sketch_by_id(id=id)
         return jsonify(status=res)
     except Exception as ex:
@@ -1344,10 +1598,12 @@ def admin_delete_sketch(id: int = 0):
 
 
 @app.route("/admindeleteindice", methods=["POST"])
+@login_required
+@admin_required
 def admin_delete_indice():
     try:
-        if request.method == "POST":
-            name = request.json["name"] if str(request.json.get("name")) else None
+        if request.method == "POST" and request.json:
+            name = request.json.get("name", "")
             if name:
                 res = admin_utils.delete_indice_by_name(indice_name=name)
                 return jsonify(status=res)
@@ -1364,6 +1620,8 @@ def admin_delete_indice():
 
 
 @app.route("/adminhayabusaversion", methods=["GET"])
+@login_required
+@admin_required
 def admin_get_hayabusa_version():
     try:
         _hv = admin_utils.get_hayabusa_version()
@@ -1373,6 +1631,8 @@ def admin_get_hayabusa_version():
 
 
 @app.route("/admin_upload_hayabusa", methods=["POST"])
+@login_required
+@admin_required
 def admin_upload_hayabusa():
     try:
         _hv = True
@@ -1399,6 +1659,8 @@ def admin_upload_hayabusa():
 
 
 @app.route("/admin_get_logstash_connections", methods=["GET"])
+@login_required
+@admin_required
 def admin_get_logstash_connections():
     try:
         _conns = list()
@@ -1420,6 +1682,93 @@ def admin_get_logstash_connections():
         )
 
 
+@login_manager.user_loader
+def load_user(user_id):
+    try:
+        user_data = session.get("user_data")
+        if user_data and str(user_data.get("id", "")) == user_id:
+            return User(
+                user_id=user_data.get("id"),
+                username=user_data.get("username"),
+                email=user_data.get("email"),
+                first_name=user_data.get("first_name"),
+                last_name=user_data.get("last_name"),
+                groups=user_data.get("groups"),
+                email_verified=user_data.get("email_verified"),
+                validate_token=user_data.get("validate_token"),
+                token_expires_in=user_data.get("token_expires_in"),
+            )
+    except Exception as ex:
+        ADMIN_LOGGER.error(f"[keycloak_connection_callback] {ex}")
+        return None
+
+
+@app.route("/callback", methods=["GET"])
+def keycloak_connection_callback():
+    try:
+        auth_code_received = request.args.get("code", "")
+        if auth_code_received:
+            tokens = exchange_code_for_token(auth_code_received)
+            if tokens:
+                id_token = tokens.get("id_token", "")
+                access_token = tokens.get("access_token", "")
+                is_active = validate_token(access_token)
+                user_groups = []
+                if id_token:
+                    decoded_id_token = decode_id_token(id_token)
+                    if decoded_id_token:
+                        user_groups_from_id_token = decoded_id_token.get("groups", [])
+                        if user_groups_from_id_token:
+                            user_groups.extend(user_groups_from_id_token)
+                user_info = get_user_info(access_token)
+                if KEYCLOAK_USERS_GROUP not in list(
+                    map(lambda x: x.lower(), user_info.get("groups", []))
+                ):
+                    raise Exception(
+                        f'{user_info.get("preferred_username", user_info.get("name", ""))} is not part of the {KEYCLOAK_USERS_GROUP} Team !'
+                    )
+                user = User(
+                    user_id=user_info.get("sub", ""),
+                    username=user_info.get(
+                        "preferred_username", user_info.get("name", "")
+                    ),
+                    email=user_info.get("email", ""),
+                    first_name=user_info.get("given_name", ""),
+                    last_name=user_info.get("family_name", ""),
+                    groups=user_info.get("groups", []),
+                    email_verified=user_info.get("email_verified", False),
+                    validate_token=is_active,
+                    token_expires_in=tokens.get("expires_in", 0),
+                )
+                session["user_data"] = {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "groups": user.groups,
+                    "email_verified": user.email_verified,
+                    "validate_token": user.validate_token,
+                    "token_expires_in": user.token_expires_in,
+                    "access_token": access_token,
+                    "refresh_token": tokens.get("refresh_token", ""),
+                    "id_token": id_token,
+                }
+                login_user(user, remember=True)  # connection flasklogin
+                ADMIN_LOGGER.info(
+                    f"[keycloak_connection_callback] {user.username} connected !"
+                )
+            else:
+                raise Exception("Échec de l'obtention des tokens.")
+        else:
+            raise Exception("URL de callback invalide ou code d'autorisation manquant.")
+        return redirect(url_for("home"))
+    except Exception as ex:
+        flash(f"[keycloak_connection_callback] {ex}", "text-bg-danger")
+        ADMIN_LOGGER.error(f"[keycloak_connection_callback] {ex}")
+        return redirect(url_for("home"))
+
+
 def check_internal_config(conf: dict = {}) -> None:
     try:
         for k, v in recursive_items(conf):
@@ -1434,6 +1783,7 @@ def check_internal_config(conf: dict = {}) -> None:
 
 def main():
     print("======= Running on https://0.0.0.0 =======")
+    requests.packages.urllib3.disable_warnings()
     ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     ssl_context.load_cert_chain(
         "config/certs/pytriage.crt", "config/certs/pytriage.key"

@@ -6,12 +6,11 @@
 
 ## Introduction
 
-Le serveur de triage a pour but d'automatiser le traitement des collectes effectuées sur les systèmes à investiguer. Il effectue le *processing* de certaines tâches (*timelining* et détection SIGMA notamment) ainsi que le *forwarding* vers les outils d'analyses (pile ELK et Timesketch).
+Le serveur de triage a pour but d'automatiser le traitement des collectes effectuées sur les systèmes à investiguer. Il effectue le *processing* de certaines tâches (*timelining* et détection SIGMA notamment) ainsi que le *forwarding* vers les outils d'analyses (pile ELK et Timesketch si configuré dans config/triage.yaml).
 
 Actuellement, le serveur de triage effectue le traitements des collectes suivantes :
 
 - KAPE / DFIR-ORC / GENERAPTOR Windows
-- HAYABUSA
 - UAC / GENERAPTOR Linux
 - ADTIMELINE
 - VOLATILITY Windows
@@ -37,12 +36,15 @@ La barre de navigation permet de :
 - Accéder aux collectes en cours de traitement et passées
 - Accéder à la partie "administration"
 - Initialiser la page pour une nouvelle collecte
-- Les liens d'accès à Timesketch et ELK
 
 Chaque collecte concerne :
 
 - 1 client
 - 1 machine ou tenant
+
+<p align="center">
+<img src="docs/images/user_view.png"/>
+</p>
 
 ### Plugins
 
@@ -59,7 +61,7 @@ Plusieurs artefacts sont traités si sélectionnés dans l'interface :
 
 - Les EVTX sont copiés dans un dossier puis envoyés à la VM Winlogbeat pour indexation
 OU
-- Les EVTX sont parsés puis envoyés à ELK
+- Les EVTX sont parsés (par la lib python) puis envoyés à ELK
 - Les logs IIS seront extraits du vhdx, copiés dans un dossier, parsés puis envoyés à ELK
 - Les timelines Plaso seront créées puis envoyées à Timesketch
 - Parsing MFT
@@ -81,8 +83,8 @@ Plusieurs artefacts sont traités si sélectionnés dans l'interface :
 
 - Les EVTX sont copiés dans un dossier puis envoyés à la VM Winlogbeat pour indexation
 OU
-- Les EVTX sont parsés puis envoyés à ELK
-- Les logs IIS seront extraits du vhdx, copiés dans un dossier, parsés puis envoyés à ELK
+- Les EVTX sont parsés (par la lib python) puis envoyés à ELK
+- Les logs IIS seront extraits du ZIP, copiés dans un dossier, parsés puis envoyés à ELK
 - Une timeline Plaso est créée puis envoyée à Timesketch
 - Parsing MFT
 - Parsing USNJrnl
@@ -103,7 +105,7 @@ Plusieurs artefacts sont traités si sélectionnés dans l'interface :
 
 - Les EVTX sont copiés dans un dossier puis envoyés à la VM Winlogbeat pour indexation
 OU
-- Les EVTX sont parsés puis envoyés à ELK
+- Les EVTX sont parsés (par la lib python) puis envoyés à ELK
 - Une timeline Plaso est créée puis envoyée à Timesketch
 - Parsing MFT
 - Parsing USNJrnl

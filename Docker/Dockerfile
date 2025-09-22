@@ -17,6 +17,7 @@ RUN apt update -y && \
     apt install -y libguestfs-tools && \
     apt install -y zip && \
     apt install -y openssl && \
+    apt install -y pkg-config && \
     #apt install -y pff-tools && \
     apt clean -y && \
     rm -rf /var/cache/apt/* /var/lib/apt/lists/*

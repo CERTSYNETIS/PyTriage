@@ -56,7 +56,7 @@ kombu==5.5.4
 libfwps-python==20240417
 libfwsi-python==20240423
 libpff-python==20231205
-libscca-python==20240427
+libscca-python==20250915
 lxml==6.0.0
 mailbox==0.4
 markdown-it-py==3.0.0

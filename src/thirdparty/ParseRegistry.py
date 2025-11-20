@@ -1,9 +1,10 @@
 import json
 import os
 from pathlib import Path
+from logging import Logger
 from regipy.registry import RegistryHive
 from regipy.plugins.utils import run_relevant_plugins
-from .triageutils import search_files_generator, delete_file
+from .triageutils import search_files_generator, delete_file, file_exists
 import datetime
 import csv
 
@@ -13,7 +14,7 @@ class ParseRegistry:
     Class to Parse Registry hives
     """
 
-    def __init__(self, logger) -> None:
+    def __init__(self, logger: Logger) -> None:
         self.logger = logger
 
     def parse_amcache(self, file_path, dir_out):
@@ -27,9 +28,11 @@ class ParseRegistry:
         reg = RegistryHive(file_path)
         user_name = file_path.parts[-2]
         path_out_csv = Path(os.path.join(dir_out, f"{hv_name}_{user_name}.csv"))
-        delete_file(src=path_out_csv, logger=self.logger)
+        if file_exists(file=path_out_csv, logger=self.logger):
+            delete_file(src=path_out_csv, logger=self.logger)
         path_out_json = Path(os.path.join(dir_out, f"{hv_name}_{user_name}.json"))
-        delete_file(src=path_out_json, logger=self.logger)
+        if file_exists(file=path_out_json, logger=self.logger):
+            delete_file(src=path_out_json, logger=self.logger)
         try:
             parsed = run_relevant_plugins(reg, as_json=True)
             with open(path_out_json, "w") as outfile:

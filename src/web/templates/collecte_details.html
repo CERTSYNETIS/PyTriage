@@ -13,10 +13,6 @@
           <span class="visually-hidden">Loading...</span>
         </div>   
         </h5>           
-        <div id="collecte_task_row" class="row">
-          <pre id="collecte_task_title" class="col-3">Task</pre>
-          <pre id="collecte_task_value" class="col-9">{{config.task_id}}</pre>
-        </div>
         <div id="collecte_name_row" class="row">
           <pre id="collecte_name_title" class="col-3">Name</pre>
           <pre id="collecte_name_value" class="col-9">
@@ -47,6 +43,10 @@
 {{config.general.hostname}}</pre
           >
         </div>
+        <div id="collecte_triagetime_row" class="row">
+          <pre id="collecte_triagetime_title" class="col-3">Triage time</pre>
+          <pre id="collecte_triagetime_value" class="col-9">{{config.general.triagetime}}</pre>
+        </div>
         <div id="collecte_timesketchid_row" class="row">
           <pre id="collecte_timesketchid_title" class="col-3">
 Timesketch ID</pre
@@ -54,6 +54,10 @@ Timesketch ID</pre
           <pre id="collecte_timesketchid_value" class="col-9">
 {{config.general.timesketch_id}}</pre
           >
+        </div>
+        <div id="collecte_task_row" class="row">
+          <pre id="collecte_task_title" class="col-3">Task</pre>
+          <pre id="collecte_task_value" class="col-9">{{config.task_id}}</pre>
         </div>
         <div id="collecte_logfile_row" class="row">
           <pre id="collecte_logfile_title" class="col-3">Log File <a id="download_collecte_log" href="/download_log_file?id={{config.log_file}}" data-bs-toggle="tooltip"
@@ -133,11 +137,18 @@ Timesketch ID</pre
       </div>
       <div class="card-body">
         <button
-          id="replayForm"
-          class="btn btn-outline-warning my-2 my-sm-0"
-        >
-          Replay
-        </button>
+              id="replayForm"
+              class="btn btn-outline-primary my-2 my-sm-0"
+            >
+              Replay
+            </button>
+          <button
+              id="stopForm"
+              class="btn btn-outline-danger my-2 my-sm-0"
+              style="display: none;"
+            >
+              Stop
+            </button>
       </div>
     </div>
   </div>
@@ -169,43 +180,13 @@ Timesketch ID</pre
     $("#loading_div").hide();
   });
 
+  $("#stopForm").click(function (e) {
+    stop_collecte(taskid=_myconfig.task_id, csrf_token='{{ csrf_token() }}', frombutton=true);
+    get_collecte_status(_myconfig.task_id);
+  });
+
   $("#replayForm").click(function (e) {
-    generate_toast("info_toast", "Demande de rejeu envoyée");
-    $("#loading_div").show();
-    $.ajax({
-      url: "/replay",
-      type: "POST",
-      data: JSON.stringify(_myconfig),
-      cache: false,
-      contentType: "application/json",
-      processData: false,
-      dataType: "json",
-      success: function (res) {
-        if (res) {
-          var txt = "";
-          if ( res.error.length > 0) {
-            $("#error_replay").remove();
-            generate_toast("error_replay", res.error, "text-bg-danger");
-          }
-          txt = "Id de triage: " + res.uuid + "<br>";
-          $("#logs_title").html("Logs - " + txt);
-          $("#logs").html("Processing...");
-          generate_toast("id_triage", txt);
-          $(".custom-file-label").html("");
-          start_process(res);
-        }
-      },
-      error: function (res) {
-        if (res) {
-          generate_toast("error_replay", res, "text-bg-danger");
-        }
-      },
-      complete: function () {
-        $("#id_progress_bar").hide();
-        $("#loading_div").hide();
-      },
-    });
-    return false;
+    replay_collecte(config=_myconfig, csrf_token="{{ csrf_token() }}");
   }); // Replay the form
   
   //setInterval(function(){getlogs(_myconfig.uuid)}, 30000);

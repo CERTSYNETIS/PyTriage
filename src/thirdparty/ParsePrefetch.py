@@ -50,7 +50,7 @@ class ParsePrefetch:
             for _i in scca.filenames:
                 output["files"].append(_i)
         except Exception as ex:
-            print(f"[parse_file] {ex}")
+            self.logger.error(f"[parse_file] {ex}")
         finally:
             return output
 

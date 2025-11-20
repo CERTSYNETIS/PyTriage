@@ -2,12 +2,12 @@ import subprocess
 import os
 import json
 import time
+import yaml
+from re import compile
 from typing import Optional
 from itertools import islice
 from datetime import datetime, timezone
-from dateutil.relativedelta import relativedelta
 from pathlib import Path
-import docker
 from src.thirdparty import triageutils as triageutils
 from src.thirdparty.ParseEVTX import ParseEVTX
 from src.thirdparty.ParseRegistry import ParseRegistry
@@ -18,6 +18,11 @@ from src.thirdparty.ParseMPLog import ParseMPLog
 from src.thirdparty.winactivities.ParseWinactivities import ParseWinActivities
 from src.thirdparty.trashparse.ParseTrash import TrashParse
 from src.thirdparty.ParseRDPCache import BMCContainer
+from src.thirdparty.ParseLnk import ParseLnk
+from src.thirdparty.ParseJumpList import ParseJumpList
+from src.thirdparty.ParseTask import ParseTask
+from src.thirdparty.ParseWebCache import ParseWebcache
+from src.thirdparty.wrapper_docker import WrapperDocker
 from logging import Logger
 from src import BasePlugin, Status
 
@@ -33,19 +38,20 @@ class Plugin(BasePlugin):
 
         self.zipfile = os.path.join(self.upload_dir, conf["archive"]["name"])
         self.vhdx_file = None
+        self._docker = WrapperDocker(logger=self.logger)
 
-        self.kape_dir = os.path.join(self.upload_dir, self.hostname, "kape")
+        self.kape_dir = Path(os.path.join(self.upload_dir, self.hostname, "kape"))
         triageutils.create_directory_path(path=self.kape_dir, logger=self.logger)
 
-        self.zip_destination = os.path.join(self.kape_dir, "extract")
+        self.zip_destination = Path(os.path.join(self.kape_dir, "extract"))
         triageutils.create_directory_path(path=self.zip_destination, logger=self.logger)
-
-        self.mount_point = os.path.join(self.kape_dir, "mnt")
-        triageutils.create_directory_path(path=self.mount_point, logger=self.logger)
-        self.config["general"]["extracted_zip"] = f"{self.mount_point}"
+        self.config["general"]["extracted_zip"] = f"{self.zip_destination}"
         self.update_config_file(data=self.config)
 
-        self.plaso_folder = os.path.join(self.kape_dir, "plaso")
+        self.mount_point = Path(os.path.join(self.kape_dir, "mnt"))
+        triageutils.create_directory_path(path=self.mount_point, logger=self.logger)
+
+        self.plaso_folder = Path(os.path.join(self.kape_dir, "plaso"))
         triageutils.create_directory_path(path=self.plaso_folder, logger=self.logger)
 
         self.evtx_share = Path(os.path.join(self.kape_dir, "EVTX_Orig"))
@@ -62,7 +68,7 @@ class Plugin(BasePlugin):
         self.reg_share = Path(os.path.join(self.kape_dir, "REGISTRY"))
         triageutils.create_directory_path(path=self.reg_share, logger=self.logger)
 
-        self.iis_share = os.path.join(self.kape_dir, "iis")
+        self.iis_share = Path(os.path.join(self.kape_dir, "iis"))
         triageutils.create_directory_path(path=self.iis_share, logger=self.logger)
 
         self.mplog_share = Path(os.path.join(self.kape_dir, "MPLog"))
@@ -86,6 +92,21 @@ class Plugin(BasePlugin):
 
         self.RDPCache_dir = Path(os.path.join(self.kape_dir, "RDPCache"))
         triageutils.create_directory_path(path=self.RDPCache_dir, logger=self.logger)
+
+        self.lnk_dir = Path(os.path.join(self.kape_dir, "Lnk"))
+        triageutils.create_directory_path(path=self.lnk_dir, logger=self.logger)
+
+        self.jumplist_dir = Path(os.path.join(self.kape_dir, "JumpList"))
+        triageutils.create_directory_path(path=self.jumplist_dir, logger=self.logger)
+
+        self.tasks_dir = Path(os.path.join(self.kape_dir, "Tasks"))
+        triageutils.create_directory_path(path=self.tasks_dir, logger=self.logger)
+
+        self.webcache_dir = Path(os.path.join(self.kape_dir, "WebCache"))
+        triageutils.create_directory_path(path=self.webcache_dir, logger=self.logger)
+
+        self.hayabusa_dir = Path(os.path.join(self.kape_dir, "Hayabusa"))
+        triageutils.create_directory_path(path=self.hayabusa_dir, logger=self.logger)
 
     @triageutils.LOG
     def extract_zip(self, archive=None, dest=None, specific_files=[], logger=None):
@@ -200,28 +221,6 @@ class Plugin(BasePlugin):
             raise ex
 
     @triageutils.LOG
-    def get_evtx(self, evtx_folder=None, logger=None) -> list:
-        """Copie les fichiers evtx présents dans le dossier vers le dossier partagé.
-        Args:
-            evtx_folder (str): optionnel chemin du dossier contenant les fichiers evtx si pas de dossier, il cherche dans tout le vhdx
-        Returns:
-            un tableau contenant le nom de tous les fichiers trouvés
-        """
-        records = []
-        if not evtx_folder:
-            evtx_folder = self.mount_point
-        records.extend(
-            triageutils.search_files(
-                src=evtx_folder, pattern=".evtx", logger=self.logger
-            )
-        )
-        if len(records):
-            triageutils.copy_files(
-                src=records, dst=self.evtx_share, overwrite=True, logger=self.logger
-            )
-        return records
-
-    @triageutils.LOG
     def unmountVHDX(self, mountpoint=None, logger=None):
         """Démonte le point de montage.
         Args:
@@ -246,42 +245,6 @@ class Plugin(BasePlugin):
             # raise ex
 
     @triageutils.LOG
-    def check_docker_image(
-        self,
-        image_name="log2timeline/plaso",
-        tag="20230717",
-        logger=None,
-    ):
-        try:
-            _docker = docker.from_env()
-            self.info(f"Is image present: {image_name}, tag:{tag}")
-            all_images = []
-            for image in _docker.images.list():
-                for key, value in image.attrs.items():
-                    if key == "RepoTags":
-                        all_images.extend(value)
-            if f"{image_name}:{tag}" in all_images:
-                self.info("Image is present")
-            else:
-                self.info("Pulling image...")
-                _docker.images.pull(repository=image_name, tag=tag)
-        except Exception as ex:
-            self.error(f"[check_docker_image] {ex}")
-            raise ex
-
-    @triageutils.LOG
-    def kill_docker_container(self, logger=None):
-        _docker = docker.from_env()
-        self.info("== Containers ==")
-        for container in _docker.containers.list():
-            self.info(f"{container.name}")
-            if f"{self.clientname}-{self.hostname}-" in container.name:
-                self.info(f"Delete container: {container.name}")
-                container.kill()
-                container.remove(force=True)
-        _docker.close()
-
-    @triageutils.LOG
     def generate_mft_timeline(self, logger=None):
         """Génère la timeline de $MFT et $UsnJrnl.
         Args:
@@ -298,11 +261,7 @@ class Plugin(BasePlugin):
                 src=self.zip_destination, pattern="_UsnJrnl.body", logger=self.logger
             )
             usn = usn[0] if len(usn) == 1 else None
-            _docker = docker.from_env()
-            self.info(f"Docker volume to mount: {self.data_volume}")
             if mft and usn:
-                self.info("Start Docker log2timeline/plaso on $MFT,$UsnJrnl files")
-                # cmd = f"log2timeline.py --worker_memory_limit 4000000000 --parsers mactime --storage_file /data/{self.hostname}-DISK.plaso /data/modules/FileSystem/"
                 cmd = [
                     "log2timeline.py",
                     "--status_view",
@@ -313,20 +272,7 @@ class Plugin(BasePlugin):
                     f"{self.zip_destination}/{self.hostname}-DISK.plaso",
                     f"{self.zip_destination}/modules/FileSystem/",
                 ]
-                container = _docker.containers.run(
-                    image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
-                    auto_remove=True,
-                    detach=True,
-                    command=cmd,
-                    volumes=[f"{self.data_volume}:/data"],
-                    stderr=True,
-                    stdout=True,
-                    name=f"{self.clientname}-{self.hostname}-DISK",
-                )
-                container.wait()
-                self.info("STOP Docker log2timeline/plaso on $MFT,$UsnJrnl files")
             else:
-                self.info("Start Docker log2timeline/plaso on VHDX file")
                 cmd = [
                     "log2timeline.py",
                     "--status_view",
@@ -337,22 +283,16 @@ class Plugin(BasePlugin):
                     f"{self.zip_destination}/{self.hostname}-DISK.plaso",
                     self.vhdx_file,
                 ]
-                container = _docker.containers.run(
-                    image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
-                    auto_remove=True,
-                    detach=True,
-                    command=cmd,
-                    volumes=[f"{self.data_volume}:/data"],
-                    stderr=True,
-                    stdout=True,
-                    name=f"{self.clientname}-{self.hostname}-DISK",
-                )
-                container.wait()
-                self.info("STOP Docker log2timeline/plaso on VHDX file")
+            self._docker.image = f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}'
+            if not self._docker.is_image_present(name=self._docker.image):
+                raise Exception("Image not present")
+            self._docker.container = f"{self.uuid}-mft-plaso"
+            self._docker.volumes = [f"{self.data_volume}:/data"]
+            self._docker.execute_cmd(cmd=cmd)
 
-            s_file = os.path.join(self.plaso_folder, f"{self.hostname}-DISK.plaso")
+            s_file = self.plaso_folder / f"{self.hostname}-DISK.plaso"
             triageutils.move_file(
-                src=os.path.join(self.zip_destination, f"{self.hostname}-DISK.plaso"),
+                src=self.zip_destination / f"{self.hostname}-DISK.plaso",
                 dst=s_file,
                 logger=self.logger,
             )
@@ -365,18 +305,17 @@ class Plugin(BasePlugin):
                 )
         except Exception as ex:
             self.logger.error(f"[generate_mft_timeline] {ex}")
+            raise ex
 
     @triageutils.LOG
-    def generate_winarts_timeline(self, logger=None):
+    def generate_winarts_timeline(self, logger=None)-> Path:
         """Génère la timeline de pe, prefetch, LNK, JOB, REG, EVTX, firefox_downloads, firefox_history, chrome_27_history.
         Args:
 
         Returns:
 
         """
-        # client = docker.from_env()
         try:
-            self.info("Start Docker log2timeline/plaso on winarts")
             cmd = [
                 "log2timeline.py",
                 "--status_view",
@@ -385,24 +324,15 @@ class Plugin(BasePlugin):
                 f"{self.zip_destination}/{self.hostname}-WINARTS.plaso",
                 self.vhdx_file,
             ]
-            _docker = docker.from_env()
-            container = _docker.containers.run(
-                image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
-                auto_remove=True,
-                detach=True,
-                command=cmd,
-                volumes=[f"{self.data_volume}:/data"],
-                stderr=True,
-                stdout=True,
-                name=f"{self.clientname}-{self.hostname}-WINARTS",
-            )
-            container.wait()
-            self.info("STOP Docker log2timeline/plaso on winarts")
-            s_file = os.path.join(self.plaso_folder, f"{self.hostname}-WINARTS.plaso")
+            self._docker.image = f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}'
+            if not self._docker.is_image_present(name=self._docker.image):
+                raise Exception("Image not present")
+            self._docker.container = f"{self.uuid}-winarts-plaso"
+            self._docker.volumes = [f"{self.data_volume}:/data"]
+            self._docker.execute_cmd(cmd=cmd)
+            s_file = self.plaso_folder / f"{self.hostname}-WINARTS.plaso"
             triageutils.move_file(
-                src=os.path.join(
-                    self.zip_destination, f"{self.hostname}-WINARTS.plaso"
-                ),
+                src=self.zip_destination / f"{self.hostname}-WINARTS.plaso",
                 dst=s_file,
                 logger=self.logger,
             )
@@ -413,11 +343,13 @@ class Plugin(BasePlugin):
                     timesketch_id=self.timesketch_id,
                     logger=self.logger,
                 )
+            return s_file
         except Exception as ex:
             self.logger.error(f"[generate_winarts_timeline] {ex}")
+            raise ex
 
     @triageutils.LOG
-    def generate_psort_timeline(self, plasofile="", logger=None) -> str:
+    def generate_psort_timeline(self, plasofile: Path, logger: Logger) -> Path:
         """Génère la timeline avec PSORT du fichier plaso en entrée et l'envoie à ELK.
         Args:
             plasofile (str): chemin du fichier plaso à parser
@@ -426,57 +358,28 @@ class Plugin(BasePlugin):
             (str) file path généré
 
         """
-        # client = docker.from_env()
-        if not plasofile:
-            raise Exception("No PLASO file given")
-        self.info(f"Start Docker PLASO/psort on {plasofile}")
         file_attribute = ""
-        if "WINARTS" in plasofile:
+        if "WINARTS" in plasofile.as_posix():
             file_attribute = "WINARTS"
-        elif "DISK" in plasofile:
+        elif "DISK" in plasofile.as_posix():
             file_attribute = "DISK"
-
-        """
-        now_date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-        start_date = (datetime.now(timezone.utc) - relativedelta(years=1)).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-        cmd.append(f"date < '{now_date}' and date > '{start_date}'")
-        """
-
-        slice = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-        slice_size = 1051200
 
         cmd = [
             "psort.py",
             "-o",
             "json_line",
-            "--slice",
-            slice,
-            "--slice_size",
-            slice_size,
             "-a",
             "-w",
-            f"{self.plaso_folder}/psort-{self.hostname}-{file_attribute}.jsonl",
-            f"{self.plaso_folder}/{plasofile}",
+            f"{self.plaso_folder.as_posix()}/psort-{self.hostname}-{file_attribute}.jsonl",
+            plasofile.as_posix(),
         ]
-
-        _docker = docker.from_env()
-        container = _docker.containers.run(
-            image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
-            auto_remove=True,
-            detach=True,
-            command=cmd,
-            volumes=[f"{self.data_volume}:/data"],
-            stderr=True,
-            stdout=True,
-            name=f"{self.clientname}-{self.hostname}-PSORT",
-        )
-        container.wait()
-        self.info(f"STOP Docker PLASO/psort on {plasofile}")
-        s_file = os.path.join(
-            self.plaso_folder, f"psort-{self.hostname}-{file_attribute}.jsonl"
-        )
+        self._docker.image = f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}'
+        if not self._docker.is_image_present(name=self._docker.image):
+            raise Exception("Image not present")
+        self._docker.container = f"{self.uuid}-psort"
+        self._docker.volumes = [f"{self.data_volume}:/data"]
+        self._docker.execute_cmd(cmd=cmd)
+        s_file = self.plaso_folder / f"psort-{self.hostname}-{file_attribute}.jsonl"
         return s_file
 
     @triageutils.LOG
@@ -515,111 +418,59 @@ class Plugin(BasePlugin):
             raise e
 
     @triageutils.LOG
-    def get_iis_logs(self, logger: Logger) -> list:
-        """Copie les fichiers de logs du serveur IIS présents dans le dossier vers le dossier partagé.
-        Args:
-            logger (Logger): Logger de l'instance en cours
-        Returns:
-            un tableau contenant le nom de tous les fichiers trouvés
-        """
-        records = []
-        pattern = ".log"
-
-        iis_folder = triageutils.get_folder_path_by_name(
-            folder_name="inetpub", root=self.mount_point
-        )
-
-        if iis_folder:
-            triageutils.copy_directory(
-                src=iis_folder, dst=self.iis_share, logger=self.logger
+    def kape_iis_logs(self, logger: Logger):
+        try:
+            _found = False
+            _searchpattern = compile(r"[a-z]").sub(
+                triageutils._ci_glob_repl, "inetpub/**/*.log".lower()
             )
-            records.extend(
-                triageutils.search_files_by_extension(
-                    dir=self.iis_share, extension=pattern, logger=self.logger
+            for _f in self.mount_point.rglob(_searchpattern):
+                _found = True
+                triageutils.copy_file(
+                    src=_f, dst=self.iis_share, overwrite=True, logger=self.logger
                 )
-            )
-        return records
+
+            if _found and self.is_logstash_active:
+                _data = triageutils.generate_iis_filebeat_config(
+                    ip=self.logstash_url.split("//")[1],
+                    port=self.iis_port,
+                    client=self.clientname,
+                    hostname=self.hostname,
+                    logger=None,
+                )
+                new_config = self.iis_share / Path("filebeat.docker.yml")
+                with open(new_config.as_posix(), "w") as file:
+                    yaml.dump(_data, file, sort_keys=False)
+                voldisk = [
+                    f"{new_config}:/usr/share/filebeat/filebeat.yml:ro",
+                ]
+                voldisk.append(f"{self.iis_share}:/iis")
+                cmd = ["filebeat", "-e", "--once", "--strict.perms=false"]
+                self._docker.image = f'{self.docker_images["filebeat"]["image"]}:{self.docker_images["filebeat"]["tag"]}'
+                if not self._docker.is_image_present(name=self._docker.image):
+                    raise Exception("Image not present")
+                self._docker.container = f"{self.uuid}-iis"
+                self._docker.volumes = voldisk
+                self._docker.execute_cmd(cmd=cmd)
+        except Exception as ex:
+            self.error(f"[kape_iis_logs] {ex}")
+            raise ex
 
     @triageutils.LOG
-    def send_iis_logs(self, iis_logs=[], logger=None) -> bool:
-        """Parse les fichiers de log IIS puis les envoies vers ELK.
-        Args:
-            iis_logs (list): Liste contenant les chemins des fichiers de log
-        Returns:
-
-        """
-        if not len(iis_logs):
-            # iis_logs = triageutils.search_files(dir=self.iis_folder, pattern=".log")
-            self.error("[send_iis_logs] No IIS logs to send")
-            return False
-        count = 0
-        total = len(iis_logs)
-        ip = self.logstash_url
-        if ip.startswith("http"):
-            ip = self.logstash_url.split("//")[1]
-        for file in iis_logs:
-            try:  # For non blocking error
-                if file.endswith(".log"):  # PROCESS only Log files
-                    json_tab = []
-                    with open(file, "r", errors="ignore") as log_to_parse:
-                        count += 1
-                        Lines = log_to_parse.readlines()
-                        header_ok = False
-                        header = []
-                        for line in Lines:
-                            if line.startswith("#Fields:") and not header_ok:
-                                header_ok = True
-                                header = line.split("#Fields: ")[1].split()
-                            elif not line.startswith("#"):
-                                fields = line.split()
-                                data_to_send = dict(zip(header, fields))
-                                # data_to_send["host_log_path"] = file
-                                data_to_send["log"] = dict()
-                                data_to_send["log"]["file"] = dict()
-                                data_to_send["log"]["file"]["path"] = file
-                                data_to_send["full_message"] = line
-                                data_to_send["csirt"] = dict()
-                                data_to_send["csirt"]["client"] = self.clientname
-                                data_to_send["csirt"]["hostname"] = self.hostname
-                                data_to_send["csirt"]["application"] = "iis"
-                                json_tab.append(data_to_send)
-                    self.info(f"[send_iis_logs] send file {count}/{total}")
-                    triageutils.send_data_to_elk(
-                        data=json_tab,
-                        ip=ip,
-                        port=self.iis_port,
-                        logger=self.logger,
-                    )
-            except Exception as ex:
-                self.error(f"[send_iis_logs] {ex} ")
-        return True
-
-    @triageutils.LOG
-    def send_logs_to_winlogbeat(self, evtx_logs=[], logger=None) -> bool:
-        """Copie les evtx vers le dossier partagé sur la VM Winlogbeat.
-        Args:
-            evtx_logs (list): Liste contenant les chemins des fichiers de log
-        Returns:
-            result (bool): True or False
-        """
-        result = True
-        self.info(f"[send_logs_to_winlogbeat] Total EVTX: {len(evtx_logs)}")
-        if not len(evtx_logs):
-            self.error("[send_logs_to_winlogbeat] No EVTX logs to send")
-            return False
+    def kape_evtx_winlogbeat(self, logger: Logger):
         try:
             win_log_path = os.path.join(self.winlogbeat, self.clientname, self.hostname)
-            if triageutils.create_directory_path(path=win_log_path, logger=self.logger):
-                self.info(
-                    f"[send_logs_to_winlogbeat] WinLogBeat created: {win_log_path}"
+            triageutils.create_directory_path(path=win_log_path, logger=self.logger)
+            for _f in self.mount_point.rglob("*.evtx"):
+                triageutils.copy_file(
+                    src=_f, dst=self.evtx_share, overwrite=True, logger=self.logger
                 )
-                result &= triageutils.copy_files(
-                    src=evtx_logs, dst=win_log_path, overwrite=True, logger=self.logger
+                triageutils.copy_file(
+                    src=_f, dst=win_log_path, overwrite=True, logger=self.logger
                 )
         except Exception as ex:
-            self.error(f"[send_logs_to_winlogbeat] {ex}")
-        self.info(f"[send_logs_to_winlogbeat] result: {result}")
-        return result
+            self.error(f"[kape_evtx_winlogbeat] {ex}")
+            raise ex
 
     @triageutils.LOG
     def kape_parse_evtx(self, logger=None):
@@ -627,15 +478,7 @@ class Plugin(BasePlugin):
             _ip = self.logstash_url
             if _ip.startswith("http"):
                 _ip = self.logstash_url.split("//")[1]
-            for _f in triageutils.search_files_by_extension_generator(
-                src=self.mount_point, extension=".evtx", logger=self.logger
-            ):
-                triageutils.copy_file(
-                    src=_f,
-                    dst=self.evtx_share,
-                    overwrite=True,
-                    logger=self.logger,
-                )
+            for _f in self.mount_point.rglob("*.evtx"):
                 _p = ParseEVTX(
                     evtxfilepath=_f,
                     ip=_ip,
@@ -647,6 +490,7 @@ class Plugin(BasePlugin):
                     logstash_is_active=self.is_logstash_active,
                     logger=self.logger,
                 )
+                self.info(f"[kape_parse_evtx] Parse: {_f}")
                 _res = _p.parse_evtx()
                 self.info(f"[kape_parse_evtx] {_res}")
         except Exception as ex:
@@ -665,18 +509,13 @@ class Plugin(BasePlugin):
     @triageutils.LOG
     def kape_parse_mft(self, logger=None):
         try:
-            _mft_files = triageutils.search_files(
-                src=self.mount_point, pattern="$MFT", strict=True
-            )
-            if len(_mft_files):
-                _output_file = f"{self.ntfs_share}/mft_parsed.csv"
-                _mft = _mft_files[0]
+            for _f in self.mount_point.rglob("$MFT"):
+                # _output_file = f"{self.ntfs_share}/mft_parsed_{int(time.time())}.csv"
+                _output_file = f"{self.ntfs_share}/{_f.parts[-2]}_mft.csv"
                 _analyzer = MftAnalyzer(
-                    mft_file=_mft, output_file=_output_file, logger=self.logger
+                    mft_file=_f.as_posix(), output_file=_output_file, logger=self.logger
                 )
                 _analyzer.analyze()
-            else:
-                self.logger.error(f"[kape_parse_mft] No $MFT found")
         except Exception as ex:
             self.error(f"[kape_parse_mft] {str(ex)}")
             raise ex
@@ -684,18 +523,16 @@ class Plugin(BasePlugin):
     @triageutils.LOG
     def kape_parse_usnjrnl(self, logger=None):
         try:
-            _usn_files = triageutils.search_files(
-                src=self.mount_point, pattern="$J", strict=True
-            )
-            if len(_usn_files):
-                _csv_output_file = Path(f"{self.ntfs_share}/usn_parsed.csv")
-                _usn = Path(_usn_files[0])
+            for _f in self.mount_point.rglob("$J"):
+                _csv_output_file = self.ntfs_share / f"{_f.parts[-2]}_usn.csv"
+                _body_output_file = self.ntfs_share / f"{_f.parts[-2]}_usn.body"
                 _analyzer = ParseUSNJRNL(
-                    usn_file=_usn, result_csv_file=_csv_output_file, logger=self.logger
+                    usn_file=_f,
+                    result_csv_file=_csv_output_file,
+                    result_body_file=_body_output_file,
+                    logger=self.logger,
                 )
                 _analyzer.analyze()
-            else:
-                self.logger.error(f"[kape_parse_usnjrnl] No $J found")
         except Exception as ex:
             self.error(f"[kape_parse_usnjrnl] {str(ex)}")
             raise ex
@@ -703,13 +540,8 @@ class Plugin(BasePlugin):
     @triageutils.LOG
     def kape_parse_prefetch(self, logger=None):
         try:
-            for _f in triageutils.search_files_by_extension_generator(
-                src=self.mount_point,
-                extension=".pf",
-                patterninpath="prefetch",
-                logger=self.logger,
-            ):
-                _output_file = Path(f"{self.prefetch_share}/{_f.parts[-1]}.json")
+            for _f in self.mount_point.rglob("*.pf"):
+                _output_file = self.prefetch_share / f"{_f.name}.json"
                 _analyzer = ParsePrefetch(
                     prefetch=_f,
                     output=_output_file,
@@ -723,9 +555,10 @@ class Plugin(BasePlugin):
     @triageutils.LOG
     def kape_parse_mplog(self, logger=None):
         try:
-            for _f in triageutils.search_files_generator(
-                src=self.mount_point, pattern="MPLog-", patterninpath="Windows Defender"
-            ):
+            _searchpattern = compile(r"[a-z]").sub(
+                triageutils._ci_glob_repl, "MPLog-*".lower()
+            )
+            for _f in self.mount_point.rglob(_searchpattern):
                 self.info(f"[kape_parse_mplog] Parse: {_f}")
                 _analyzer = ParseMPLog(mplog_file=_f, output_directory=self.mplog_share)
                 _analyzer.orchestrator()
@@ -736,11 +569,8 @@ class Plugin(BasePlugin):
     @triageutils.LOG
     def kape_parse_activitiescache(self, logger: Logger):
         try:
-            for _f in triageutils.search_files_generator(
-                src=self.mount_point,
-                pattern="ActivitiesCache.db",
-                patterninpath="ConnectedDevicesPlatform",
-                strict=True,
+            for _f in self.mount_point.rglob(
+                "ConnectedDevicesPlatform/**/ActivitiesCache.db"
             ):
                 self.info(f"[kape_parse_activitiescache] Parse: {_f}")
                 _analyzer = ParseWinActivities(
@@ -756,10 +586,10 @@ class Plugin(BasePlugin):
     @triageutils.LOG
     def kape_parse_recyclebin(self, logger: Logger):
         try:
-            _recyclebin_folder = triageutils.get_folder_path_by_name(
-                folder_name="$Recycle.Bin", root=self.mount_point, logger=self.logger
+            _searchpattern = compile(r"[a-z]").sub(
+                triageutils._ci_glob_repl, "$Recycle.Bin".lower()
             )
-            if _recyclebin_folder:
+            for _recyclebin_folder in self.mount_point.rglob(_searchpattern):
                 for _dir in triageutils.list_directory_full_path(
                     src=_recyclebin_folder,
                     onlydirs=True,
@@ -770,31 +600,27 @@ class Plugin(BasePlugin):
                     trash = TrashParse(recyclebin_folder=_dir, logger=self.logger)
                     trash.listfile()
                     trash.parsefile()
-                    _output = Path(self.recyclebin_dir / Path(f"{_dir.name}.csv"))
+                    _output = self.recyclebin_dir / f"{_dir.name}.csv"
                     trash.write_csv(csv_file=_output)
-                    _output = Path(self.recyclebin_dir / Path(f"{_dir.name}.jsonl"))
+                    _output = self.recyclebin_dir / f"{_dir.name}.jsonl"
                     trash.write_jsonl(jsonl_file=_output)
-            else:
-                self.info("[kape_parse_recyclebin] No {$Recycle.Bin} Folder")
         except Exception as ex:
             self.error(f"[kape_parse_recyclebin] {ex}")
 
     @triageutils.LOG
     def kape_get_consolehost_history(self, logger: Logger):
         try:
-            for _f in triageutils.search_files_generator(
-                src=self.zip_destination,
-                pattern="ConsoleHost_history.txt",
-                patterninpath="PSReadLine",
-                strict=True,
-            ):
+            _searchpattern = compile(r"[a-z]").sub(
+                triageutils._ci_glob_repl, "ConsoleHost_history.txt".lower()
+            )
+            for _f in self.mount_point.rglob(_searchpattern):
                 self.info(f"[kape_get_consolehost_history] Parse: {_f}")
                 try:
                     _username = _f.parts[_f.parts.index("Users") + 1]
                 except Exception as errorname:
                     self.error(f"{errorname}")
                     _username = time.time()
-                _dst = self.psreadline_dir / Path(f"{_username}")
+                _dst = self.psreadline_dir / str(_username)
                 triageutils.copy_file(
                     src=_f, dst=_dst, overwrite=True, logger=self.logger
                 )
@@ -808,32 +634,30 @@ class Plugin(BasePlugin):
             for _d in [f for f in self.RDPCache_dir.iterdir() if f.is_dir()]:
                 triageutils.delete_directory(src=_d, logger=self.logger)
             # Get BMC files
-            for _f in triageutils.search_files_by_extension_generator(
-                src=self.zip_destination,
-                extension=".bmc",
-                patterninpath="Terminal Server Client",
-            ):
+            _searchpattern = compile(r"[a-z]").sub(
+                triageutils._ci_glob_repl, "Terminal Server Client/**/*.bmc".lower()
+            )
+            for _f in self.mount_point.rglob(_searchpattern):
                 try:
                     _username = _f.parts[_f.parts.index("Users") + 1]
                 except Exception as errorname:
                     self.error(f"{errorname}")
                     _username = time.time()
-                _dst = self.RDPCache_dir / Path(f"{_username}")
+                _dst = self.RDPCache_dir / str(_username)
                 triageutils.copy_file(
                     src=_f, dst=_dst, overwrite=True, logger=self.logger
                 )
             # Get BIN files
-            for _f in triageutils.search_files_by_extension_generator(
-                src=self.zip_destination,
-                extension=".bin",
-                patterninpath="Terminal Server Client",
-            ):
+            _searchpattern = compile(r"[a-z]").sub(
+                triageutils._ci_glob_repl, "Terminal Server Client/**/*.bin".lower()
+            )
+            for _f in self.mount_point.rglob(_searchpattern):
                 try:
                     _username = _f.parts[_f.parts.index("Users") + 1]
                 except Exception as errorname:
                     self.error(f"{errorname}")
                     _username = time.time()
-                _dst = self.RDPCache_dir / Path(f"{_username}")
+                _dst = self.RDPCache_dir / str(_username)
                 triageutils.copy_file(
                     src=_f, dst=_dst, overwrite=True, logger=self.logger
                 )
@@ -865,6 +689,225 @@ class Plugin(BasePlugin):
             raise ex
 
     @triageutils.LOG
+    def kape_parse_lnk(self, logger: Logger):
+        try:
+            _searchpattern = compile(r"[a-z]").sub(
+                triageutils._ci_glob_repl, "Recent/**/*.lnk".lower()
+            )
+            for _f in self.mount_point.rglob(_searchpattern):
+                try:
+                    _username = _f.parts[_f.parts.index("Users") + 1]
+                except Exception as errorname:
+                    self.error(f"File not in Users folders: {errorname}")
+                    _username = time.time()
+                _dst = self.lnk_dir / str(_username)
+                triageutils.create_directory_path(path=_dst, logger=self.logger)
+                _output_file = _dst / f"{_f.stem}.json"
+                _analyzer = ParseLnk(
+                    lnk_file=_f,
+                    output=_output_file,
+                    logger=self.logger,
+                )
+                _analyzer.analyze()
+        except Exception as ex:
+            self.error(f"[kape_parse_lnk] {str(ex)}")
+            raise ex
+
+    @triageutils.LOG
+    def kape_parse_jumplist(self, logger: Logger):
+        try:
+            _searchpattern = compile(r"[a-z]").sub(
+                triageutils._ci_glob_repl,
+                "Recent/**/*.automaticDestinations-ms".lower(),
+            )
+            for _f in self.mount_point.rglob(_searchpattern):
+                try:
+                    _username = _f.parts[_f.parts.index("Users") + 1]
+                except Exception as errorname:
+                    self.error(f"File not in Users folders: {errorname}")
+                    _username = time.time()
+                _dst = self.jumplist_dir / str(_username)
+                triageutils.create_directory_path(path=_dst, logger=self.logger)
+                _output_file = _dst / f"{_f.name}.jsonl"
+                _analyzer = ParseJumpList(
+                    input_file=_f,
+                    output_file=_output_file,
+                    logger=self.logger,
+                )
+                _analyzer.analyze_automatic_destinations()
+            _searchpatterncustom = compile(r"[a-z]").sub(
+                triageutils._ci_glob_repl, "Recent/**/*.customDestinations-ms".lower()
+            )
+            for _f in self.mount_point.rglob(_searchpatterncustom):
+                try:
+                    _username = _f.parts[_f.parts.index("Users") + 1]
+                except Exception as errorname:
+                    self.error(f"File not in Users folders: {errorname}")
+                    _username = time.time()
+                _dst = self.jumplist_dir / str(_username)
+                triageutils.create_directory_path(path=_dst, logger=self.logger)
+                _output_file = _dst / f"{_f.name}.jsonl"
+                _analyzer = ParseJumpList(
+                    input_file=_f,
+                    output_file=_output_file,
+                    logger=self.logger,
+                )
+                _analyzer.analyze_custom_destinations()
+        except Exception as ex:
+            self.error(f"[kape_parse_lnk] {str(ex)}")
+            raise ex
+
+    @triageutils.LOG
+    def kape_parse_tasks(self, logger: Logger):
+        try:
+            _searchpattern = compile(r"[a-z]").sub(
+                triageutils._ci_glob_repl, "System32/Tasks/*".lower()
+            )
+            for _f in self.mount_point.rglob(_searchpattern):
+                if _f.is_file():
+                    try:
+                        _output_file = self.tasks_dir / f"{_f.name}.json"
+                        if triageutils.file_exists(file=_output_file, logger=None):
+                            triageutils.delete_file(src=_output_file, logger=None)
+                        _analyzer = ParseTask(
+                            task_file=_f,
+                            result_jsonl_file=_output_file,
+                            logger=self.logger,
+                        )
+                        _analyzer.analyze()
+                    except Exception as ex:
+                        self.error(str(ex))
+        except Exception as ex:
+            self.error(f"[kape_parse_tasks] {str(ex)}")
+            raise ex
+
+    @triageutils.LOG
+    def kape_parse_webcache(self, logger: Logger):
+        try:
+            _searchpattern = compile(r"[a-z]").sub(
+                triageutils._ci_glob_repl, "WebCacheV01.dat".lower()
+            )
+            for _f in self.mount_point.rglob(_searchpattern):
+                if _f.is_file():
+                    try:
+                        try:
+                            _username = _f.parts[_f.parts.index("Users") + 1]
+                        except Exception as errorname:
+                            self.error(f"File not in Users folders: {errorname}")
+                            _username = time.time()
+                        _output_jsonl_file = (
+                            self.webcache_dir / f"{_username}_{_f.stem}.jsonl"
+                        )
+                        if triageutils.file_exists(
+                            file=_output_jsonl_file, logger=None
+                        ):
+                            triageutils.delete_file(src=_output_jsonl_file, logger=None)
+                        _analyzer = ParseWebcache(
+                            cache_file=_f,
+                            result_jsonl_file=_output_jsonl_file,
+                            logger=self.logger,
+                        )
+                        _analyzer.analyze()
+                    except Exception as ex:
+                        self.error(str(ex))
+        except Exception as ex:
+            self.error(f"[kape_parse_webcache] {str(ex)}")
+            raise ex
+
+    @triageutils.LOG
+    def kape_exec_hayabusa(self, logger: Logger) -> Path:
+        """
+        Execute Hayabusa on EVTX folder and return JSONL result Path
+        """
+        try:
+            _evtx_folder = next(self.mount_point.rglob("*.evtx"), None)
+            if _evtx_folder:
+                _evtx_folder.parent
+                output_json = self.hayabusa_dir / "hayabusa.jsonl"
+                cmd = [
+                    self.hayabusa_bin_path,
+                    "json-timeline",
+                    "-d",
+                    str(_evtx_folder.parent),
+                    "-p",
+                    "all-field-info-verbose",
+                    "-ULwqNC",
+                    "-o",
+                    str(output_json),
+                ]
+                p = subprocess.Popen(
+                    cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=os.environ
+                )
+                (output, err) = p.communicate()
+                p_status = p.wait()
+
+                # self.info(f"[hayabusa] output: {output}")
+                self.info(f"[kape_exec_hayabusa] error: {err}")
+                self.info(f"[kape_exec_hayabusa] status: {p_status}")
+                if not triageutils.file_exists(file=output_json, logger=self.logger):
+                    raise Exception("hayabusa no result generated")
+                return self.hayabusa_dir / "hayabusa.jsonl"
+            else:
+                raise Exception("No evtx folder")
+        except Exception as ex:
+            self.error(f"[kape_exec_hayabusa] {ex}")
+            raise ex
+
+    @triageutils.LOG
+    def kape_hayabusa_to_elk(self, hayabusa_results:Path, logger:Logger) -> int:
+        """
+        Fonction qui envoie les résultats hayabusa vers ELK
+        Return:
+            number of event sent (int)
+        """
+        try:
+            with open(str(hayabusa_results), "r") as jsonl_f:
+                json_data = [json.loads(line) for line in jsonl_f]
+                for obj in json_data:
+                    if type(obj) is dict:
+                        try:
+                            if "AllFieldInfo" in obj.keys():
+                                if isinstance(obj["AllFieldInfo"], dict):
+                                    b = dict()
+                                    b = {
+                                        key: str(value)
+                                        for key, value in obj["AllFieldInfo"].items()
+                                    }
+                                    obj["AllFieldInfo"].update(b)
+                                elif isinstance(obj["AllFieldInfo"], str):
+                                    b = dict()
+                                    b = {"FieldInfo": obj["AllFieldInfo"]}
+                                    obj["AllFieldInfo"] = b
+                        except Exception as haya_error:
+                            self.error(
+                                f"[kape_hayabusa_to_elk] Failed to change values type of AllFieldInfo: {haya_error}"
+                            )
+                if self.is_logstash_active:
+                    ip = self.logstash_url
+                    if ip.startswith("http"):
+                        ip = self.logstash_url.split("//")[1]
+                    extrafields = dict()
+                    extrafields["csirt"] = dict()
+                    extrafields["csirt"]["client"] = self.clientname
+                    extrafields["csirt"]["application"] = "alerts"
+                    extrafields["csirt"]["hostname"] = self.hostname
+
+                    _event_sent = triageutils.send_data_to_elk(
+                        data=json_data,
+                        ip=ip,
+                        port=self.hayabusa_port,
+                        logger=self.logger,
+                        extrafields=extrafields,
+                    )
+                    return _event_sent
+                return 0
+        except Exception as e:
+            self.error(f"[kape_hayabusa_to_elk] {str(e)}")
+            raise e
+
+
+
+    @triageutils.LOG
     def run(self, logger: Logger):
         """Fonction principale qui exécute tout le triage de kape
 
@@ -874,6 +917,7 @@ class Plugin(BasePlugin):
 
         """
         try:
+            _exceptions = list()
             self.update_workflow_status(
                 plugin="kape", module="plugin", status=Status.STARTED
             )
@@ -889,34 +933,51 @@ class Plugin(BasePlugin):
                 )
             except Exception as ex:
                 self.error(f"[Kape ERROR] {str(ex)}")
+                _exceptions.append(str(ex))
+            if self.config["run"]["kape"].setdefault("winlogbeat", False):
+                self.info("[kape] Run Winlogbeat")
+                self.update_workflow_status(
+                    plugin="kape", module="winlogbeat", status=Status.STARTED
+                )
+                try:
+                    self.update_workflow_status(
+                        plugin="kape",
+                        module="winlogbeat",
+                        status=Status.STARTED,
+                    )
+                    if self.is_winlogbeat_active:
+                        self.kape_evtx_winlogbeat(logger=self.logger)
+                        self.update_workflow_status(
+                            plugin="kape",
+                            module="winlogbeat",
+                            status=Status.FINISHED,
+                        )
+                    else:
+                        raise Exception("Winlogbeat not enabled")
+                except Exception as ex:
+                    self.error(f"[kape ERROR] {str(ex)}")
+                    _exceptions.append(str(ex))
+                    self.update_workflow_status(
+                        plugin="kape",
+                        module="winlogbeat",
+                        status=Status.ERROR,
+                    )
             if self.config["run"]["kape"].setdefault("evtx", False):
                 self.info("[KAPE] Run EVTX")
                 self.update_workflow_status(
                     plugin="kape", module="evtx", status=Status.STARTED
                 )
                 try:
-                    if self.config["run"]["kape"]["winlogbeat"]:
-                        self.update_workflow_status(
-                            plugin="kape", module="winlogbeat", status=Status.STARTED
-                        )
-                        evtx_logs = self.get_evtx(logger=self.logger)
-                        if self.is_winlogbeat_active:
-                            self.send_logs_to_winlogbeat(
-                                evtx_logs=evtx_logs, logger=self.logger
-                            )
-                        self.update_workflow_status(
-                            plugin="kape", module="winlogbeat", status=Status.FINISHED
-                        )
-                    else:
-                        self.kape_parse_evtx(logger=self.logger)
+                    self.kape_parse_evtx(logger=self.logger)
                     self.update_workflow_status(
                         plugin="kape", module="evtx", status=Status.FINISHED
                     )
                 except Exception as ex:
+                    self.error(f"[Kape ERROR] {str(ex)}")
+                    _exceptions.append(str(ex))
                     self.update_workflow_status(
                         plugin="kape", module="evtx", status=Status.ERROR
                     )
-                    self.error(f"[Kape ERROR] {str(ex)}")
             if self.config["run"]["kape"].setdefault("registry", False):
                 try:
                     self.info("[KAPE] Run Registry")
@@ -929,6 +990,7 @@ class Plugin(BasePlugin):
                     )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
+                    _exceptions.append(str(ex))
                     self.update_workflow_status(
                         plugin="kape", module="registry", status=Status.ERROR
                     )
@@ -944,6 +1006,7 @@ class Plugin(BasePlugin):
                     )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
+                    _exceptions.append(str(ex))
                     self.update_workflow_status(
                         plugin="kape", module="mft", status=Status.ERROR
                     )
@@ -959,6 +1022,7 @@ class Plugin(BasePlugin):
                     )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
+                    _exceptions.append(str(ex))
                     self.update_workflow_status(
                         plugin="kape", module="usnjrnl", status=Status.ERROR
                     )
@@ -974,6 +1038,7 @@ class Plugin(BasePlugin):
                     )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
+                    _exceptions.append(str(ex))
                     self.update_workflow_status(
                         plugin="kape", module="prefetch", status=Status.ERROR
                     )
@@ -989,6 +1054,7 @@ class Plugin(BasePlugin):
                     )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
+                    _exceptions.append(str(ex))
                     self.update_workflow_status(
                         plugin="kape", module="mplog", status=Status.ERROR
                     )
@@ -1004,6 +1070,7 @@ class Plugin(BasePlugin):
                     )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
+                    _exceptions.append(str(ex))
                     self.update_workflow_status(
                         plugin="kape", module="activitiescache", status=Status.ERROR
                     )
@@ -1019,6 +1086,7 @@ class Plugin(BasePlugin):
                     )
                 except Exception as err_reg:
                     self.error(f"[kape ERROR] {str(err_reg)}")
+                    _exceptions.append(str(err_reg))
                     self.update_workflow_status(
                         plugin="kape", module="recyclebin", status=Status.ERROR
                     )
@@ -1034,6 +1102,7 @@ class Plugin(BasePlugin):
                     )
                 except Exception as err_reg:
                     self.error(f"[kape ERROR] {str(err_reg)}")
+                    _exceptions.append(str(err_reg))
                     self.update_workflow_status(
                         plugin="kape", module="psreadline", status=Status.ERROR
                     )
@@ -1049,8 +1118,95 @@ class Plugin(BasePlugin):
                     )
                 except Exception as err_rdp:
                     self.error(f"[kape ERROR] {str(err_rdp)}")
+                    _exceptions.append(str(err_rdp))
                     self.update_workflow_status(
                         plugin="kape", module="rdpcache", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("lnk", False):
+                try:
+                    self.info("[kape] Run LNK")
+                    self.update_workflow_status(
+                        plugin="kape", module="lnk", status=Status.STARTED
+                    )
+                    self.kape_parse_lnk(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="lnk", status=Status.FINISHED
+                    )
+                except Exception as err_rdp:
+                    self.error(f"[kape ERROR] {str(err_rdp)}")
+                    _exceptions.append(str(err_rdp))
+                    self.update_workflow_status(
+                        plugin="kape", module="lnk", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("jumplist", False):
+                try:
+                    self.info("[kape] Run JumpList")
+                    self.update_workflow_status(
+                        plugin="kape", module="jumplist", status=Status.STARTED
+                    )
+                    self.kape_parse_jumplist(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="jumplist", status=Status.FINISHED
+                    )
+                except Exception as err_rdp:
+                    self.error(f"[kape ERROR] {str(err_rdp)}")
+                    _exceptions.append(str(err_rdp))
+                    self.update_workflow_status(
+                        plugin="kape", module="jumplist", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("tasks", False):
+                self.info("[kape] Run Tasks")
+                self.update_workflow_status(
+                    plugin="kape", module="tasks", status=Status.STARTED
+                )
+                try:
+                    self.kape_parse_tasks(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape",
+                        module="tasks",
+                        status=Status.FINISHED,
+                    )
+                except Exception as err_tasks:
+                    self.error(f"[kape ERROR] {str(err_tasks)}")
+                    _exceptions.append(str(err_tasks))
+                    self.update_workflow_status(
+                        plugin="kape", module="tasks", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("webcache", False):
+                self.info("[kape] Run WebCache")
+                self.update_workflow_status(
+                    plugin="kape", module="webcache", status=Status.STARTED
+                )
+                try:
+                    self.kape_parse_webcache(logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape",
+                        module="webcache",
+                        status=Status.FINISHED,
+                    )
+                except Exception as err_webcache:
+                    self.error(f"[kape ERROR] {str(err_webcache)}")
+                    _exceptions.append(str(err_webcache))
+                    self.update_workflow_status(
+                        plugin="kape", module="webcache", status=Status.ERROR
+                    )
+            if self.config["run"]["kape"].setdefault("hayabusa", False):
+                self.info("[kape] Run HAYABUSA")
+                self.update_workflow_status(
+                    plugin="kape", module="hayabusa", status=Status.STARTED
+                )
+                try:
+                    _res = self.kape_exec_hayabusa(logger=self.logger)
+                    if self.is_logstash_active:
+                        self.kape_hayabusa_to_elk(hayabusa_results=_res, logger=self.logger)
+                    self.update_workflow_status(
+                        plugin="kape", module="hayabusa", status=Status.FINISHED
+                    )
+                except Exception as err_reg:
+                    self.error(f"[kape ERROR] {str(err_reg)}")
+                    _exceptions.append(str(err_reg))
+                    self.update_workflow_status(
+                        plugin="kape", module="hayabusa", status=Status.ERROR
                     )
             if self.config["run"]["kape"].setdefault("iis", False):
                 try:
@@ -1058,38 +1214,37 @@ class Plugin(BasePlugin):
                     self.update_workflow_status(
                         plugin="kape", module="iis", status=Status.STARTED
                     )
-                    res = self.get_iis_logs(logger=self.logger)
-                    if self.is_logstash_active:
-                        self.send_iis_logs(iis_logs=res, logger=self.logger)
+                    self.kape_iis_logs(logger=self.logger)
                     self.update_workflow_status(
                         plugin="kape", module="iis", status=Status.FINISHED
                     )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
+                    _exceptions.append(str(ex))
                     self.update_workflow_status(
                         plugin="kape", module="iis", status=Status.ERROR
                     )
-            if self.config["run"]["kape"].setdefault("timeline", False):
+            if self.config["run"]["kape"].setdefault("plaso", False):
                 try:
                     self.info("[KAPE] Run PLASO")
                     self.update_workflow_status(
-                        plugin="kape", module="timeline", status=Status.STARTED
-                    )
-                    self.check_docker_image(
-                        image_name=self.docker_images["plaso"]["image"],
-                        tag=self.docker_images["plaso"]["tag"],
-                        logger=self.logger,
+                        plugin="kape", module="plaso", status=Status.STARTED
                     )
                     self.generate_mft_timeline(logger=self.logger)
-                    self.generate_winarts_timeline(logger=self.logger)
+                    _plaso_file = self.generate_winarts_timeline(logger=self.logger)
+                    if not self.is_timesketch_active:
+                        self.generate_psort_timeline(plasofile=_plaso_file,logger=self.logger)
                     self.update_workflow_status(
-                        plugin="kape", module="timeline", status=Status.FINISHED
+                        plugin="kape", module="plaso", status=Status.FINISHED
                     )
                 except Exception as ex:
                     self.error(f"[Kape ERROR] {str(ex)}")
+                    _exceptions.append(str(ex))
                     self.update_workflow_status(
-                        plugin="kape", module="timeline", status=Status.ERROR
+                        plugin="kape", module="plaso", status=Status.ERROR
                     )
+            if len(_exceptions) > 0:
+                raise Exception(str(_exceptions))
             self.update_workflow_status(
                 plugin="kape", module="plugin", status=Status.FINISHED
             )
@@ -1098,10 +1253,10 @@ class Plugin(BasePlugin):
                 plugin="kape", module="plugin", status=Status.ERROR
             )
             self.error(f"[KAPE ERROR] {str(ex)}")
-            self.info("Exception so kill my running containers")
-            self.kill_docker_container(logger=self.logger)
             raise ex
         finally:
-            self.info("[KAPE] End processing")
             if self.vhdx_file:
                 self.unmountVHDX(logger=self.logger)
+            self._docker.kill_containers_by_name(name=self.uuid)
+            triageutils.delete_directory(src=self.mount_point, logger=self.logger)
+            self.info("[KAPE] End processing")

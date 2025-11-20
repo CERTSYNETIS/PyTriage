@@ -57,6 +57,7 @@
                   src="{{ url_for('static', filename='images/cert.png') }}"
                   alt="Bootstrap"
                 />
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <button
                   data-mdb-button-init
                   data-mdb-ripple-init

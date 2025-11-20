@@ -8,10 +8,10 @@ import json
 import csv
 import yaml
 import time
-import types
 import gzip
 import subprocess
 from typing import Optional
+from collections.abc import Iterator
 import re
 import py7zr
 from charset_normalizer import detect
@@ -36,7 +36,7 @@ magics = {
 
 
 def set_default_logger():
-    l = get_logger(name="default")
+    l = get_logger(name="admin")
     return l
 
 
@@ -89,25 +89,56 @@ def LOG(f):
     return wrapper
 
 
+def _ci_glob_repl(match):
+    char = match.group(0)
+    return f"[{char.upper()}{char}]"
+
+
+def update_dict(dict_to_update: dict, new_values: dict):
+    """
+    Update dict with values from another dict
+    params must have the same keys
+    """
+    try:
+        for key in list(dict_to_update):
+            if new_values.get(key, None) is None:
+                del dict_to_update[key]
+                continue
+            if type(dict_to_update[key]) is bool:
+                dict_to_update[key] = new_values.get(key, False)
+            elif type(dict_to_update[key]) is str:
+                dict_to_update[key] = new_values.get(key, "")
+            elif type(dict_to_update[key]) is int:
+                dict_to_update[key] = new_values.get(key, 0)
+            elif type(dict_to_update[key]) is dict:
+                update_dict(
+                    dict_to_update=dict_to_update[key],
+                    new_values=new_values.get(key, {}),
+                )
+        return dict_to_update
+    except Exception as ex:
+        LOGGER.error(f"[update_dict] {ex}")
+        return dict()
+
+
 @LOG
 def copy_file(
     src: str | Path = "",
     dst: str | Path = "",
     overwrite: bool = False,
     LOGLEVEL: str = "INFO",
-    logger=LOGGER,
+    logger: logging.Logger = LOGGER,
 ):
     """
     Copy file (src) to directory (dst)
     """
-    if not directory_exists(dir=dst, logger=logger):
+    if not directory_exists(dir=str(dst), logger=None):
         create_directory_path(path=dst, logger=logger)
     if not overwrite:
-        t_file = f"{dst}/{src.split('/')[-1]}"
+        t_file = f"{dst}/{str(src).split('/')[-1]}"
         if file_exists(file=t_file):
-            n_file = f"{str(time.time()).split('.')[0]}_{src.split('/')[-1]}"
+            n_file = f"{str(time.time()).split('.')[0]}_{str(src).split('/')[-1]}"
             dst = f"{dst}/{n_file}"
-            logger.info(f"[copy_file] File already exists, renamed: {n_file}")
     return shutil.copy2(src, dst)
 
 
@@ -188,8 +219,8 @@ def list_directory_full_path(
 
 @LOG
 def move_file(
-    src: str = "",
-    dst: str = "",
+    src: Path | str = "",
+    dst: Path | str = "",
     check_dir: bool = False,
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
@@ -220,22 +251,22 @@ def copy_files(
 
 @LOG
 def delete_directory(
-    src: str | Path = "", LOGLEVEL: str = "INFO", logger=LOGGER
+    src: str | Path = "", LOGLEVEL: str = "INFO", logger: logging.Logger | None = LOGGER
 ) -> bool:
     try:
         if directory_exists(dir=src, logger=logger):
             shutil.rmtree(src)
             return True
         else:
-            logger.error("Directory does not exist")
             return False
     except Exception as ex:
-        logger.error(f"[delete_directory] {str(ex)}")
         return False
 
 
 @LOG
-def delete_file(src: str | Path = "", LOGLEVEL: str = "INFO", logger=LOGGER) -> bool:
+def delete_file(
+    src: str | Path = "", LOGLEVEL: str = "INFO", logger: logging.Logger | None = LOGGER
+) -> bool:
     try:
         if os.path.exists(src):
             os.remove(src)
@@ -262,44 +293,55 @@ def delete_files_in_directory(
                             os.remove(file)
             return True
         else:
-            logger.error("Directory does not exist")
             return False
     except Exception as ex:
-        logger.error(f"[delete_directory] {str(ex)}")
+        if logger:
+            logger.error(f"[delete_directory] {str(ex)}")
         return False
 
 
 @LOG
-def create_directory_path(path: str | Path = "", LOGLEVEL: str = "INFO", logger=LOGGER):
+def create_directory_path(
+    path: str | Path = "",
+    LOGLEVEL: str = "INFO",
+    logger: logging.Logger | None = LOGGER,
+):
     try:
         Path(path).mkdir(parents=True, exist_ok=True)
         return True
     except Exception as ex:
-        logger.error(str(ex))
+        if logger:
+            logger.error(str(ex))
         return False
 
 
 @LOG
-def file_exists(file: str | Path = "", LOGLEVEL: str = "INFO", logger=LOGGER) -> bool:
+def file_exists(
+    file: str | Path = "",
+    LOGLEVEL: str = "INFO",
+    logger: logging.Logger | None = LOGGER,
+) -> bool:
     try:
         if Path(file).is_file():
             return True
         else:
             return False
     except Exception as ex:
-        logger.error(str(ex))
+        if logger:
+            logger.error(str(ex))
         return False
 
 
 @LOG
-def directory_exists(dir: str = "", LOGLEVEL: str = "INFO", logger=LOGGER) -> bool:
+def directory_exists(
+    dir: str = "", LOGLEVEL: str = "INFO", logger: logging.Logger | None = LOGGER
+) -> bool:
     try:
         if Path(dir).is_dir():
             return True
         else:
             return False
-    except Exception as ex:
-        logger.error(f"[directory_exists ERROR] {str(ex)}")
+    except Exception:
         return False
 
 
@@ -311,7 +353,7 @@ def search_files(
     strict: bool = False,
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
-) -> list:
+) -> list[str]:
     """
     Cherche tous les fichiers récursivement selon un pattern sur le nom du fichier et/ou un pattern sur le nom du path.
 
@@ -352,17 +394,16 @@ def search_files_generator(
     patterninpath: str = "",
     strict: bool = False,
     logger=LOGGER,
-):
+) -> Iterator[Path]:
     """Cherche tous les fichiers récursivement selon un pattern sur le nom du fichier et/ou un pattern sur le nom du path.
     Args:
-        dir (str): Dossier de recherche
+        src (Path): Dossier de recherche
         pattern (str): optionnel chaine de caractère à trouver dans le nom du fichier (ex: ".txt", "access"...)
         patterninpath (str): optionnel chaine de caractère à trouver dans le chemin du fichier (ex: "/var/log", "c:/users"...)
         strict (bool): optionnel le nom du fichier est identique au pattern
     Return:
         Path : full path of found file
     """
-    records = []
     obj = os.walk(src)
     for dir_path, dir_names, file_names in obj:
         for file in file_names:
@@ -390,18 +431,16 @@ def search_files_by_extension_generator(
     extension: str,
     patterninpath: str = "",
     logger=LOGGER,
-):
+) -> Iterator[Path]:
     """Cherche tous les fichiers récursivement selon un pattern sur le nom du fichier et/ou un pattern sur le nom du path.
     Args:
-        dir (str): Dossier de recherche
-        extention (str):  extention des fichiers
+        src (Path): Dossier de recherche
+        extension (str):  extention des fichiers
         patterninpath (str): optionnel chaine de caractère à trouver dans le chemin du fichier (ex: "/var/log", "c:/users"...)
-        strict (bool): optionnel le nom du fichier est identique au pattern
 
-    Return:
+    Yield:
         Path : full path of found file
     """
-    records = []
     obj = os.walk(src)
     for dir_path, dir_names, file_names in obj:
         for file in file_names:
@@ -468,8 +507,8 @@ def get_file_in_list(
 
 @LOG
 def extract_tar_archive(
-    archive: str = "",
-    dest: str = "",
+    archive: Path | str,
+    dest: Path | str,
     specific_files: list = [],
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
@@ -477,56 +516,44 @@ def extract_tar_archive(
     """Extrait tous les fichiers de l'archive TAR contenant les résultats uac.
 
     Args:
-        archive (str): optionnel chemin complet du fichier tar
-        dest (str): optionnel chemin complet de décompression de l'archive
+        archive (Path|str): optionnel chemin complet du fichier tar
+        dest (Path|str): optionnel chemin complet de décompression de l'archive
         specific_files (tab): optionnel tableau avec le nom de fichier spécifiques à extraire
     """
-    ret = None
-    if not archive or not dest:
-        logger.error("[extract_tar_archive] Args missing")
-        raise Exception("[extract_tar_archive] Args missing")
-    if tarfile.is_tarfile(archive):
-        f_path = archive
-        if archive.endswith("tar.gz"):
-            _archive = tarfile.open(archive, "r:gz")
-        elif archive.endswith("tar"):
-            _archive = tarfile.open(archive, "r:")
-        else:
-            logger.error("[extract_tar_archive] Not a valid TAR")
-            raise Exception("[extract_tar_archive] Not a valid TAR")
-        ret = archive
-        names = _archive.getnames()
-        logger.info(f"[extract_tar_archive] nb of files: {len(names)}")
-        if names and specific_files:
-            for name in names:
-                for i in range(len(specific_files)):
-                    if specific_files[i] in name:
-                        specific_files[i] = name
-        try:
-            if len(specific_files) > 0:
-                for f in specific_files:
-                    _archive.extract(f, path=dest)
+    try:
+        if tarfile.is_tarfile(archive):
+            if str(archive).endswith("tar.gz"):
+                _archive = tarfile.open(archive, "r:gz")
+            elif str(archive).endswith("tar"):
+                _archive = tarfile.open(archive, "r:")
             else:
-                _archive.extractall(path=dest)
-            _archive.close()
-
-        except Exception as ex:
-            logger.error(f"[extract_tar_archive] {str(ex)}")
-            logger.info("[extract_tar_archive] Exec tar command...")
-            p = subprocess.Popen(
-                ["tar", "-C", dest, "-xvf", f_path],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                env=os.environ,
-            )
-            (output, err) = p.communicate()
-            p_status = p.wait()
-            logger.info(f"[extract_tar_archive] tar status: {p_status} / error: {err}")
-            # raise ex
-        return ret
-    else:
-        logger.error("[extract_tar_archive] Not a valid TAR file")
-        raise Exception("[extract_tar_archive] Not a valid TAR file")
+                raise Exception("[extract_tar_archive] Not a valid TAR")
+            names = _archive.getnames()
+            if names and specific_files:
+                for name in names:
+                    for i in range(len(specific_files)):
+                        if specific_files[i] in name:
+                            specific_files[i] = name
+            try:
+                if len(specific_files) > 0:
+                    for f in specific_files:
+                        _archive.extract(f, path=str(dest))
+                else:
+                    _archive.extractall(path=str(dest))
+                _archive.close()
+            except Exception as ex:
+                p = subprocess.Popen(
+                    ["tar", "-C", str(dest), "-xvf", str(archive)],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    env=os.environ,
+                )
+                (output, err) = p.communicate()
+                p_status = p.wait()
+        else:
+            raise Exception("[extract_tar_archive] Not a valid TAR file")
+    except Exception as ex:
+        raise ex
 
 
 @LOG
@@ -691,7 +718,7 @@ def rename_key_in_dict(
 @LOG
 def import_timesketch(
     timelinename=None,
-    file: str = "",
+    file: Path | str = "",
     timesketch_id: int = 0,
     LOGLEVEL: str = "INFO",
     logger=LOGGER,
@@ -711,10 +738,10 @@ def import_timesketch(
         raise Exception("Timesketch module not active")
     if not timesketch_id:
         logger.error("[import_timesketch] sketch ID is NONE")
-        raise Exception("[import_timesketch] sketch ID is NONE")
+        raise Exception("sketch ID is NONE")
     if not file:
         logger.error("[import_timesketch] file is NONE")
-        raise Exception("[import_timesketch] file is NONE")
+        raise Exception("file is NONE")
     try:
         # ts = config.get_client(config_section="timesketch")
         _ts = client.TimesketchApi(
@@ -729,12 +756,13 @@ def import_timesketch(
             with importer.ImportStreamer() as streamer:
                 streamer.set_sketch(my_sketch)
                 streamer.set_timeline_name(timelinename)
-                streamer.add_file(file)
+                streamer.add_file(str(file))
         else:
             raise Exception("TS instance is None, connection KO")
     except Exception as ex:
         # error "format code..." is in importer.py
         logger.error(f"[import_timesketch] {str(ex)}")
+        raise ex
 
 
 @LOG
@@ -845,7 +873,7 @@ def send_data_to_elk(
             raise Exception("Module Logstash not active")
         if not data or not ip or port == 0:
             logger.error("[send_data_to_elk] one or more args are not set")
-            return None
+            return 0
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         logger.info("[send_data_to_elk] socket created")
     except socket.error as err:
@@ -954,9 +982,9 @@ def send_jsonl_to_elk(
     Returns:
     """
     try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if not INTERNAL_CONFIG["administration"]["Logstash"]["active"]:
             raise Exception("Module Logstash not active")
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         logger.info("[send_jsonl_to_elk] socket created")
         logger.info(f"[send_jsonl_to_elk] Try to connect to : {ip}:{port}")
         sock.connect((ip, port))
@@ -1170,60 +1198,6 @@ def extract_file_name(path=None, extension=None) -> dict:
 
 
 @LOG
-def _test_file_magic(filepath: str = "", magic=[], logger=LOGGER) -> bool:
-    try:
-        with open(filepath, "rb") as test_f:
-            for signature in magic:
-                lbr = len(signature)
-                if test_f.read(lbr) == signature:
-                    return True
-        return False
-    except IOError as e:
-        logger.error(f"[test_file_magic] Could not read input buffer {str(e)}")
-        return False
-
-
-@LOG
-def eval_file_format(path: str = "", logger=LOGGER) -> dict:
-    """
-    Identification de format d'archive
-    returns:
-    - dict containing 'format' and 'lib' to use
-    """
-    res = {"format": ""}
-    for m in magics.keys():
-        if _test_file_magic(magic=magics[m], filepath=path):
-            return {"format": m}
-        elif path.endswith(".7z.p7b"):
-            return {"format": ".7z.p7b"}
-        else:
-            return res
-    return res
-
-
-@LOG
-def update_dict(x, y, logger=LOGGER) -> dict:
-    """
-    Fonction pour update un dict de tableaux
-    Args :
-    - x : dict de tableau de référence
-    - y : dict de tableaux à ajouter
-    """
-    for i in x.keys():
-        try:
-            x[i].extend(y[i])
-            del y[i]
-        except KeyError:
-            logger.error(f"[update_dict] Key {i} does not exists in x or y")
-            continue
-        except Exception as e:
-            logger.error(f"[update_dict] Error mergin' dicts at key {i} : {e}")
-            continue
-    x.update(y)
-    return x
-
-
-@LOG
 def generate_filebeat_config(
     ip: str,
     port: int,
@@ -1383,6 +1357,54 @@ def generate_fortinet_filebeat_config(
         return _config
     except Exception as ex:
         logger.error(f"[generate_fortinet_filebeat_config] {str(ex)}")
+        return {}
+
+
+@LOG
+def generate_iis_filebeat_config(
+    ip: str,
+    port: int,
+    client: str,
+    hostname: str,
+    logger: logging.Logger,
+    LOGLEVEL: str = "INFO",
+) -> dict:
+    try:
+        _config = dict()
+        _config["filebeat.config"] = dict()
+        _config["filebeat.config"]["modules"] = dict()
+        _config["filebeat.config"]["modules"]["path"] = "${path.config}/modules.d/*.yml"
+        _config["filebeat.config"]["modules"]["reload.enabled"] = False
+        _config["filebeat.modules"] = list()
+        _module = dict()
+        _module["module"] = "iis"
+        _module["access"] = dict()
+        _module["access"]["enabled"] = True
+        _module["access"]["input"] = dict()
+        _module["access"]["input"]["close_eof"] = True
+        _module["access"]["var.paths"] = ["/iis/**/*.log"]
+        _config["filebeat.modules"].append(_module)
+
+        _config["output.logstash"] = dict()
+        _config["output.logstash"]["enabled"] = True
+        _config["output.logstash"]["hosts"] = [f"{ip}:{port}"]
+        _config["processors"] = list()
+        _config["processors"].append(
+            {
+                "add_fields": {
+                    "target": "csirt",
+                    "fields": {
+                        "application": "iis",
+                        "client": client,
+                        "hostname": hostname,
+                    },
+                }
+            }
+        )
+        return _config
+    except Exception as ex:
+        if logger:
+            logger.error(f"[generate_iis_filebeat_config] {str(ex)}")
         return {}
 
 

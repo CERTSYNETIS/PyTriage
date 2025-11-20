@@ -16,6 +16,8 @@ class Plugin(BasePlugin):
         self.adaudit_dir = os.path.join(self.upload_dir, self.audit_date, "adaudit")
         triageutils.create_directory_path(path=self.adaudit_dir, logger=self.logger)
         self.adaudit_archive = os.path.join(self.upload_dir, conf["archive"]["name"])
+        self.config["general"]["extracted_zip"] = f"{self.adaudit_dir}"
+        self.update_config_file(data=self.config)
 
     @triageutils.LOG
     def adaudit_extract_zip(
@@ -210,3 +212,5 @@ class Plugin(BasePlugin):
             self.error(f"[adaudit] run {str(ex)}")
             self.update_workflow_status(plugin="adaudit", status=Status.ERROR)
             raise ex
+        finally:
+            self.info("[adaudit] End processing")

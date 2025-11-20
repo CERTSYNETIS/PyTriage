@@ -55,8 +55,7 @@ class Plugin(BasePlugin):
                 )
             )
         except Exception as e:
-            self.error(f"[o365_parse_files] {str(e)}")
-            raise e
+            self.error(f"[o365_get_json_files] {str(e)}")
         finally:
             self.info(f"Files found: {len(records)}")
         return records
@@ -72,8 +71,7 @@ class Plugin(BasePlugin):
                 )
             )
         except Exception as e:
-            self.error(f"[o365_parse_files] {str(e)}")
-            raise e
+            self.error(f"[o365_get_csv_files] {str(e)}")
         finally:
             self.info(f"Files found: {len(records)}")
         return records
@@ -126,6 +124,8 @@ class Plugin(BasePlugin):
         """
         try:
             self.update_workflow_status(plugin="o365", status=Status.STARTED)
+            if not self.is_logstash_active:
+                raise Exception("Logstash not enabled")
             self.o365_extract_zip(
                 archive=self.o365_archive, dest=self.o365_dir, logger=self.logger
             )
@@ -138,9 +138,9 @@ class Plugin(BasePlugin):
                 f = Path(f)
                 if f.suffix.lower() == ".csv":
                     # process csv files
-                    _jsonl_file = Path(f"{os.path.splitext(f)[0]}.jsonl")
+                    _jsonl_file = Path(f"{f.stem}.jsonl")
                     triageutils.csv_to_json(
-                        csvFilePath=f,
+                        csvFilePath=f.as_posix(),
                         jsonFilePath=_jsonl_file.as_posix(),
                         delimiter=",",
                         writeToFile=True,
@@ -150,7 +150,7 @@ class Plugin(BasePlugin):
                     f = _jsonl_file
                 else:
                     if not self.is_jsonl_file(input_file=f):
-                        _jsonl_file = Path(f"{os.path.splitext(f)[0]}.jsonl")
+                        _jsonl_file = Path(f"{f.stem}.jsonl")
                         if triageutils.convert_json_to_jsonl(
                             input_file=f, output_file=_jsonl_file, logger=self.logger
                         ):
@@ -162,3 +162,5 @@ class Plugin(BasePlugin):
             self.error(f"[o365] run {str(ex)}")
             self.update_workflow_status(plugin="o365", status=Status.ERROR)
             raise ex
+        finally:
+            self.info("[o365] End processing")

@@ -1,8 +1,11 @@
 import os
-import docker
+from logging import Logger
 from src.thirdparty import triageutils as triageutils
+from src.thirdparty.wrapper_docker import WrapperDocker
 from src import BasePlugin, Status
 import yaml
+from datetime import datetime, timezone
+from pathlib import Path
 
 
 class Plugin(BasePlugin):
@@ -12,24 +15,30 @@ class Plugin(BasePlugin):
 
     def __init__(self, conf: dict):
         super().__init__(config=conf)
-        self.tar_file = os.path.join(self.upload_dir, conf["archive"]["name"])
-        self.uac_dir = os.path.join(self.upload_dir, self.hostname, "uac")
+        self.tar_file = Path(os.path.join(self.upload_dir, conf["archive"]["name"]))
+        self._docker = WrapperDocker(logger=self.logger)
+
+        self.uac_dir = Path(os.path.join(self.upload_dir, self.hostname, "uac"))
         triageutils.create_directory_path(path=self.uac_dir, logger=self.logger)
-        self.tar_destination = os.path.join(self.uac_dir, "extract")
+
+        self.tar_destination = Path(os.path.join(self.uac_dir, "extract"))
         triageutils.create_directory_path(path=self.tar_destination, logger=self.logger)
         self.config["general"]["extracted_zip"] = f"{self.tar_destination}"
         self.update_config_file(data=self.config)
 
-        self.plaso_dir = os.path.join(self.uac_dir, "plaso")
+        self.plaso_dir = Path(os.path.join(self.uac_dir, "plaso"))
         triageutils.create_directory_path(path=self.plaso_dir, logger=self.logger)
-        self.filebeat_dir = os.path.join(self.uac_dir, "filebeat")
+
+        self.filebeat_dir = Path(os.path.join(self.uac_dir, "filebeat"))
         triageutils.create_directory_path(path=self.filebeat_dir, logger=self.logger)
         self.log_dirs = (
             dict()
         )  # for filebeat volumes: ex {apache: "/home/user/.../elk/apache"}
 
     @triageutils.LOG
-    def extract_archive(self, archive=None, dest=None, specific_files=[], logger=None):
+    def extract_archive(
+        self, archive: Path, dest: Path, specific_files: list = [], logger=None
+    ):
         """Extrait tous les fichiers de l'archive TAR contenant les résultats uac.
 
         Args:
@@ -49,92 +58,37 @@ class Plugin(BasePlugin):
             if not triageutils.directory_exists(dir=mv_dfile, logger=self.logger):
                 triageutils.move_file(src=mv_sfile, dst=mv_dfile, logger=self.logger)
         except Exception as ex:
-            self.logger.error(f"[UAC] {ex}")
             raise ex
 
     @triageutils.LOG
-    def check_docker_image(
-        self,
-        image_name: str,
-        tag: str,
-        logger=None,
-    ):
-        try:
-            _docker = docker.from_env()
-            self.info(f"Is image present: {image_name}, tag:{tag}")
-            all_images = []
-            for image in _docker.images.list():
-                for key, value in image.attrs.items():
-                    if key == "RepoTags":
-                        all_images.extend(value)
-            if f"{image_name}:{tag}" in all_images:
-                self.info("Image is present")
-            else:
-                self.info("Pulling image...")
-                _docker.images.pull(repository=image_name, tag=tag)
-        except Exception as ex:
-            self.error(f"[check_docker_image] {ex}")
-            raise ex
-
-    @triageutils.LOG
-    def kill_docker_container(self, logger=None):
-        _docker = docker.from_env()
-        self.info("== Containers ==")
-        for container in _docker.containers.list():
-            self.info(f"{container.name}")
-            if f"{self.clientname}-{self.hostname}-" in container.name:
-                self.info(f"Delete container: {container.name}")
-                container.kill()
-                container.remove(force=True)
-        _docker.close()
-
-    @triageutils.LOG
-    def uac_generate_timeline(self, logger=None):
-        """Génère la timeline de BODYFILE.TXT et l'envoie à timesketch
+    def uac_generate_timeline(self, logger=None) -> Path:
+        """Génère le PLASO et l'envoie à timesketch
         Args:
 
         Returns:
-
+            plaso file path (Path)
         """
         try:
-            if not self.config["run"]["uac"]["timeline"]:
-                self.info("[uac_generate_timeline] Run Plaso: False")
-                return
-            _docker = docker.from_env()
-            t_file = os.path.join(self.tar_destination, "bodyfile", "bodyfile.txt")
-
-            if not triageutils.file_exists(file=t_file, logger=self.logger):
-                self.error("cannot generate uac timeline file not present")
-                return
-            self.info("Start DOCKER log2timeline")
-
             cmd = [
                 "log2timeline.py",
                 "-z",
                 "UTC",
                 "--storage_file",
                 f"{self.tar_destination}/{self.hostname}.plaso",
-                self.tar_file,
+                self.tar_file.as_posix(),
             ]
-            # https://docs.docker.com/engine/api/v1.42/
-            container = _docker.containers.run(
-                image=f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}',
-                auto_remove=True,
-                detach=True,
-                command=cmd,
-                volumes=[f"{self.data_volume}:/data"],
-                stderr=True,
-                stdout=True,
-                name=f"{self.clientname}-{self.hostname}-PLASO-UAC",
-            )
-            container.wait()
+            self._docker.image = f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}'
+            if not self._docker.is_image_present(name=self._docker.image):
+                raise Exception("Image not present")
+            self._docker.container = f"{self.uuid}-uac"
+            self._docker.volumes = [f"{self.data_volume}:/data"]
+            self._docker.execute_cmd(cmd=cmd)
             triageutils.move_file(
-                src=os.path.join(self.tar_destination, f"{self.hostname}.plaso"),
-                dst=os.path.join(self.plaso_dir, f"{self.hostname}.plaso"),
+                src=self.tar_destination / f"{self.hostname}.plaso",
+                dst=self.plaso_dir / f"{self.hostname}.plaso",
                 logger=self.logger,
             )
-            self.info("END DOCKER log2timeline")
-            s_file = os.path.join(self.plaso_dir, f"{self.hostname}.plaso")
+            s_file = self.plaso_dir / f"{self.hostname}.plaso"
             if self.is_timesketch_active:
                 triageutils.import_timesketch(
                     timelinename=f"{self.hostname}_UAC_DISK",
@@ -142,8 +96,41 @@ class Plugin(BasePlugin):
                     timesketch_id=self.timesketch_id,
                     logger=self.logger,
                 )
+            return s_file
         except Exception as ex:
-            self.error(f"[uac_generate_timeline] {str(ex)}")
+            raise ex
+
+    @triageutils.LOG
+    def uac_psort_timeline(self, plasofile: Path, logger: Logger) -> Path:
+        """Génère la timeline avec PSORT du fichier plaso.
+        Args:
+            plasofile (Path): Plaso file path
+
+        Returns:
+            (Path) PSORT file path
+
+        """
+        try:
+            cmd = [
+                "psort.py",
+                "-o",
+                "json_line",
+                "-a",
+                "-w",
+                f"{self.plaso_dir}/psort-{self.hostname}.jsonl",
+                plasofile.as_posix(),
+            ]
+            self._docker.image = f'{self.docker_images["plaso"]["image"]}:{self.docker_images["plaso"]["tag"]}'
+            if not self._docker.is_image_present(name=self._docker.image):
+                raise Exception("Image not present")
+            self._docker.container = f"{self.uuid}-psort"
+            self._docker.volumes = [f"{self.data_volume}:/data"]
+            self._docker.execute_cmd(cmd=cmd)
+
+            s_file = self.plaso_dir / f"psort-{self.hostname}.jsonl"
+            return s_file
+        except Exception as ex:
+            raise ex
 
     @triageutils.LOG
     def uac_get_logs(self, logger=None):
@@ -222,7 +209,7 @@ class Plugin(BasePlugin):
             self.error(f"[uac_get_logs] {str(ex)}")
 
     @triageutils.LOG
-    def ymlcreator(self, logger=None):
+    def ymlcreator(self, logger=None) -> Path:
         try:
             ip = self.logstash_url
             if ip.startswith("http"):
@@ -234,55 +221,36 @@ class Plugin(BasePlugin):
                 hostname=self.hostname,
                 logger=self.logger,
             )
-            new_config = os.path.join(self.filebeat_dir, "filebeat.docker.yml")
-            with open(new_config, "w") as file:
+            new_config = self.filebeat_dir / Path("filebeat.docker.yml")
+            with open(new_config.as_posix(), "w") as file:
                 yaml.dump(_data, file, sort_keys=False)
+            return new_config
         except Exception as ex:
-            self.error(f"[UAC] ymlcreator - {str(ex)}")
             raise ex
 
     @triageutils.LOG
-    def uac_filebeat(self, logger=None):
+    def uac_filebeat(self, filebeat_config: Path, logger=None):
         """
         Fonction permettant de créer et de gérer filebeat et les fichiers de logs Linux
 
         Returns:
         """
-        # client = docker.from_env()
         try:
-            if not self.config["run"]["uac"]["filebeat"]:
-                self.info("[uac_filebeat] Run Filebeat: False")
-                return
-            elk_file = os.path.join(self.filebeat_dir, "filebeat.docker.yml")
             voldisk = [
                 f"{self.data_volume}:/data",
-                f"{elk_file}:/usr/share/filebeat/filebeat.yml:ro",
+                f"{filebeat_config}:/usr/share/filebeat/filebeat.yml:ro",
             ]
             for k, v in self.log_dirs.items():
                 voldisk.append(f"{v}:/tmp/{k}")
-            self.info(f"VolDirs: {voldisk}")
-
-            if not triageutils.file_exists(file=elk_file, logger=self.logger):
-                self.error("[uac_filebeat] cannot generate filebeat yaml not present")
-                # raise Exception("[uac_filebeat] cannot generate filebeat yaml not present")
-                return
-            self.info("Start DOCKER FileBeat")
-            _docker = docker.from_env()
+            if not triageutils.file_exists(file=filebeat_config, logger=self.logger):
+                raise Exception("Filebeat yaml not present")
             cmd = ["filebeat", "-e", "--once", "--strict.perms=false"]
-            container = _docker.containers.run(
-                image=f'{self.docker_images["filebeat"]["image"]}:{self.docker_images["filebeat"]["tag"]}',
-                auto_remove=True,
-                detach=True,
-                command=cmd,
-                volumes=voldisk,
-                network_mode="host",
-                stderr=True,
-                stdout=True,
-                name=f"{self.clientname}-{self.hostname}-FILEBEAT-UAC",
-            )
-            container.wait()
-            self.info("END DOCKER FileBeat")
-
+            self._docker.image = f'{self.docker_images["filebeat"]["image"]}:{self.docker_images["filebeat"]["tag"]}'
+            if not self._docker.is_image_present(name=self._docker.image):
+                raise Exception("Image not present")
+            self._docker.container = f"{self.uuid}-filebeat"
+            self._docker.volumes = voldisk
+            self._docker.execute_cmd(cmd=cmd)
         except Exception as ex:
             self.error(f"[uac_filebeat ERROR] {str(ex)}")
             raise ex
@@ -297,13 +265,13 @@ class Plugin(BasePlugin):
 
         """
         try:
+            _exceptions = list()
             self.update_workflow_status(
                 plugin="uac", module="plugin", status=Status.STARTED
             )
             self.extract_archive(
                 archive=self.tar_file, dest=self.tar_destination, logger=self.logger
             )
-
             if self.config["run"]["uac"]["filebeat"]:
                 try:
                     if self.is_logstash_active:
@@ -311,48 +279,48 @@ class Plugin(BasePlugin):
                             plugin="uac", module="filebeat", status=Status.STARTED
                         )
                         self.uac_get_logs(logger=self.logger)
-                        self.ymlcreator(logger=self.logger)
-                        self.check_docker_image(
-                            image_name=self.docker_images["filebeat"]["image"],
-                            tag=self.docker_images["filebeat"]["tag"],
-                            logger=self.logger,
+                        _filebeat_config = self.ymlcreator(logger=self.logger)
+                        self.uac_filebeat(
+                            filebeat_config=_filebeat_config, logger=self.logger
                         )
-                        self.uac_filebeat(logger=self.logger)
-                    self.update_workflow_status(
-                        plugin="uac", module="filebeat", status=Status.FINISHED
-                    )
+                        self.update_workflow_status(
+                            plugin="uac", module="filebeat", status=Status.FINISHED
+                        )
+                    else:
+                        raise Exception("logstash is not active")
                 except Exception as ex:
-                    self.error(f"[UAC ERROR] {ex}")
+                    self.error(f"[Filebeat ERROR] {ex}")
+                    _exceptions.append(str(ex))
                     self.update_workflow_status(
                         plugin="uac", module="filebeat", status=Status.ERROR
                     )
-            if self.config["run"]["uac"]["timeline"]:
+            if self.config["run"]["uac"]["plaso"]:
                 try:
                     self.update_workflow_status(
-                        plugin="uac", module="timeline", status=Status.STARTED
+                        plugin="uac", module="plaso", status=Status.STARTED
                     )
-                    self.check_docker_image(
-                        image_name=self.docker_images["plaso"]["image"],
-                        tag=self.docker_images["plaso"]["tag"],
-                        logger=self.logger,
-                    )
-                    self.uac_generate_timeline(logger=self.logger)
+                    _plaso_file = self.uac_generate_timeline(logger=self.logger)
+                    self.uac_psort_timeline(plasofile=_plaso_file, logger=self.logger)
                     self.update_workflow_status(
-                        plugin="uac", module="timeline", status=Status.FINISHED
+                        plugin="uac", module="plaso", status=Status.FINISHED
                     )
                 except Exception as ex:
-                    self.error(f"[UAC ERROR] {ex}")
+                    self.error(f"[Plaso ERROR] {ex}")
+                    _exceptions.append(str(ex))
                     self.update_workflow_status(
-                        plugin="uac", module="timeline", status=Status.ERROR
+                        plugin="uac", module="plaso", status=Status.ERROR
                     )
+            if len(_exceptions) > 0:
+                raise Exception(str(_exceptions))
             self.update_workflow_status(
                 plugin="uac", module="plugin", status=Status.FINISHED
             )
         except Exception as ex:
+            self.error(f"[UAC] run {str(ex)}")
             self.update_workflow_status(
                 plugin="uac", module="plugin", status=Status.ERROR
             )
-            self.error(f"[UAC] run {str(ex)}")
-            self.info("Exception so kill my running containers")
-            self.kill_docker_container(logger=self.logger)
             raise ex
+        finally:
+            self._docker.kill_containers_by_name(name=self.uuid)
+            self.info("[UAC] End processing")

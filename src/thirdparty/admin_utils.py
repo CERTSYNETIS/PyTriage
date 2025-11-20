@@ -214,20 +214,10 @@ def get_all_indices() -> list:
             f"{host_uri}:{port}", basic_auth=(username, password), verify_certs=False
         )
         clients_indices = list()
-
         if es.ping():
-            patterns = [
-                "ir-lin-*",
-                "ir-orc-*",
-                "ir-m365-*",
-                "ir-ad-*",
-                "secop-ad-*",
-                "ir-log-*",
-                "dlq-*",
-                "ir-evtx-*",
-            ]
-
-            for pattern in patterns:
+            for pattern in INTERNAL_CONFIG["administration"]["Elastic"][
+                "index_patterns"
+            ]:
                 indices_response = es.indices.get(index=pattern)
                 for i in indices_response:
                     last_dash = i.rfind("-")
@@ -363,7 +353,7 @@ def update_hayabusa(zip_file="") -> bool:
 
 
 @LOG
-def chmod_file(file_path: str = "", mode: int = 0) -> bool:
+def chmod_file(file_path: str, mode: int) -> bool:
     try:
         if not mode:
             LOGGER.error("[chmod_file] mode is None")
@@ -377,7 +367,7 @@ def chmod_file(file_path: str = "", mode: int = 0) -> bool:
 
 
 @LOG
-def check_connection(ip: str = "", port: int = 0) -> bool:
+def check_connection(ip: str, port: int) -> bool:
     try:
         if ip.startswith("http"):
             ip = ip.split("//")[1]

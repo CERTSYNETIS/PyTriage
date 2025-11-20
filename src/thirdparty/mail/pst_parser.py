@@ -69,7 +69,9 @@ class PSTParser:
                     try:
                         if self.is_logstash_active:
                             _res["message"] = _parsed_msg
-                            self.send_to_elk(json_data=_res, extrafields=self.extrafields)
+                            self.send_to_elk(
+                                json_data=_res, extrafields=self.extrafields
+                            )
                             self._analytics["log"]["file"]["eventsent"] += 1
                             del _res["message"]
                     except Exception as ex:
@@ -77,7 +79,7 @@ class PSTParser:
                     _tmp_msgs.append(_parsed_msg)
                 except Exception as ex:
                     self.logger.error(f"[process_folder] msg: {ex}")
-            #Do not send big array to ELK but keep it in jsonl result file
+            # Do not send big array to ELK but keep it in jsonl result file
             _res["messages"] = _tmp_msgs
             try:
                 # Process folders within a folder
@@ -171,7 +173,7 @@ class PSTParser:
                 try:
                     data_dict[attrib] = datetime.strptime(
                         date_string=str(getattr(msg, attrib, "")),
-                        format="%d/%m/%Y %H:%M:%S"
+                        format="%d/%m/%Y %H:%M:%S",
                     )
                 except Exception as e:
                     data_dict[attrib] = str(getattr(msg, attrib, "N/A"))
@@ -302,7 +304,7 @@ class PSTParser:
             self._analytics["log"]["file"]["eventcount"] = len(parsed_data)
             self.write_json(
                 content=parsed_data,
-                output_file=self.output_dir / Path(f"{self.pstfile.stem}.json"),
+                output_file=self.output_dir / f"{self.pstfile.stem}.json",
             )
             pff_obj.close()
         except Exception as e:

@@ -57,7 +57,6 @@ class Plugin(BasePlugin):
             )
         except Exception as e:
             self.error(f"[google_parse_files] {str(e)}")
-            raise e
         finally:
             self.info(f"Files found: {len(records)}")
         return records
@@ -109,6 +108,8 @@ class Plugin(BasePlugin):
             self.update_workflow_status(
                 plugin="google", module="plugin", status=Status.STARTED
             )
+            if not self.is_logstash_active:
+                raise Exception("Logstash not enabled")
             self.google_extract_zip(
                 archive=self.google_archive, dest=self.google_dir, logger=self.logger
             )
@@ -129,3 +130,5 @@ class Plugin(BasePlugin):
                 plugin="google", module="plugin", status=Status.ERROR
             )
             raise ex
+        finally:
+            self.info("[google] End processing")

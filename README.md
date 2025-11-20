@@ -2,7 +2,18 @@
 <img src="docs/images/pytriage_blanc.png"/>
 </p>
 
+<div align="center">
+
+![Status](https://img.shields.io/badge/status-active-success?style=for-the-badge)
+![Powered By: CERT SYNETIS](https://img.shields.io/badge/Powered_By-CERT_SYNETIS-f80808.svg?style=for-the-badge)
+
+</div>
+
+<div align="center">
+
 [Introduction](#introduction) | [Fonctionnement](#fonctionnement) | [Ajout de plugin](#ajout-de-plugin) | [Déploiement](#déploiement)
+
+</div>
 
 ## Introduction
 
@@ -47,21 +58,19 @@ Chaque collecte concerne :
 </p>
 
 ### Plugins
+![parsers.png](/docs/images/parsers.png)
 
 #### KAPE
 
-> Ce plugin s'exécute sur une collecte réalisée par kape. Le fichier d'entrée est la seconde archive ZIP contenant le fichier VHDX généré par l'outil de collecte du CERT.
-
+> Ce plugin s'exécute sur une collecte réalisée par kape. Le fichier d'entrée est l'archive ZIP contenant le fichier VHDX généré par l'outil de collecte.
 
 Ce plugin dézippe l'archive, monte le vhdx fournis dans un dossier créé et propre à chaque collecte.
 
-![plugin_kape.png](/docs/images/plugin_kape.png)
-
 Plusieurs artefacts sont traités si sélectionnés dans l'interface :
 
-- Les EVTX sont copiés dans un dossier puis envoyés à la VM Winlogbeat pour indexation
-OU
+- Les EVTX sont copiés dans un dossier puis envoyés à la VM Winlogbeat pour parsing et indexation
 - Les EVTX sont parsés (par la lib python) puis envoyés à ELK
+- Exécution Hayabusa sur les EVTX
 - Les logs IIS seront extraits du vhdx, copiés dans un dossier, parsés puis envoyés à ELK
 - Les timelines Plaso seront créées puis envoyées à Timesketch
 - Parsing MFT
@@ -73,6 +82,10 @@ OU
 - Parsing $Recycle.Bin
 - Récupération des fichiers d'historique Powershell des utilisateurs
 - RDP Bitmap Cache parser
+- Parsing LNK
+- Parsing JumpList
+- Parsing Tasks
+- Parsing Webcache
 
 #### GENERAPTOR Windows
 
@@ -81,9 +94,9 @@ OU
 
 Plusieurs artefacts sont traités si sélectionnés dans l'interface :
 
-- Les EVTX sont copiés dans un dossier puis envoyés à la VM Winlogbeat pour indexation
-OU
+- Les EVTX sont copiés dans un dossier puis envoyés à la VM Winlogbeat pour parsing et indexation
 - Les EVTX sont parsés (par la lib python) puis envoyés à ELK
+- Exécution Hayabusa sur les EVTX
 - Les logs IIS seront extraits du ZIP, copiés dans un dossier, parsés puis envoyés à ELK
 - Une timeline Plaso est créée puis envoyée à Timesketch
 - Parsing MFT
@@ -95,6 +108,10 @@ OU
 - Parsing $Recycle.Bin
 - Récupération des fichiers d'historique Powershell des utilisateurs
 - RDP Bitmap Cache parser
+- Parsing LNK
+- Parsing JumpList
+- Parsing Tasks
+- Parsing Webcache
 
 #### DFIR-ORC
 
@@ -103,14 +120,23 @@ OU
 
 Plusieurs artefacts sont traités si sélectionnés dans l'interface :
 
-- Les EVTX sont copiés dans un dossier puis envoyés à la VM Winlogbeat pour indexation
-OU
+- Les EVTX sont copiés dans un dossier puis envoyés à la VM Winlogbeat pour parsing et indexation
 - Les EVTX sont parsés (par la lib python) puis envoyés à ELK
+- Exécution Hayabusa sur les EVTX
 - Une timeline Plaso est créée puis envoyée à Timesketch
 - Parsing MFT
 - Parsing USNJrnl
 - Parsing Registres (amcache, system, security, ntuser...)
 - Parsing prefetch
+- Parsing MPLog
+- Parsing Windows10 Timeline (ActivitiesCache)
+- Parsing $Recycle.Bin
+- Récupération des fichiers d'historique Powershell des utilisateurs
+- RDP Bitmap Cache parser
+- Parsing LNK
+- Parsing JumpList
+- Parsing Tasks
+- Parsing Webcache
 
 #### GENERAPTOR Linux
 
@@ -120,6 +146,7 @@ OU
 Plusieurs artefacts sont traités si sélectionnés dans l'interface :
 
 - Une timeline Plaso est créée puis envoyées à Timesketch
+- PSORT est exécuté sur le plaso précédement généré
 - Filebeat indexera dans ELK les logs capturés lors de la collecte
 
 #### Hayabusa
@@ -137,6 +164,7 @@ Deux artefacts sont traités dans ce plugin :
 
 - Filebeat indexera dans ELK les logs capturés lors de la collecte
 - Une timelines Plaso est créée puis envoyée à Timesketch
+- PSORT est exécuté sur le plaso précédement généré
 
 #### ADTimeline
 
@@ -183,7 +211,7 @@ L'archive envoyée est dézippée et les fichiers JSON présents sont parsés pu
 
 ![6cyimage.png](/docs/images/standalone1.png)
 
-Cette partie permet de facilité l'exécution d'un plugin sur des artefacts spécifiques.
+Cette partie permet de faciliter l'exécution d'un plugin sur des artefacts spécifiques.
 
 ![gvpimage.png](/docs/images/standalone2.png)
 
@@ -206,7 +234,11 @@ Une page d'administration est accesssible pour le moment à tout le monde car au
 
 
 Elle permet:
-- D'avoir une vue sur l'ensemble des collectes, de pouvoir les supprimer et récupérer le fichier de log associé.
+- D'avoir une vue sur l'ensemble des collectes
+- De supprimer des collectes
+- De relancer des collectes
+- D'arrêter des triages en cours
+- De récupérer les fichier de log des collectes
 - De supprimer des sketch TIMESKETCH
 - De supprimer des index ELASTIC
 - De mettre à jour HAYABUSA
@@ -300,10 +332,8 @@ KEYCLOAK_USERS_GROUP=CERT
 
 Créer les dossiers **data**, **winlogbeat**, **log** et **hayabusa** si non présents (chemin à renseigner dans les fichiers docker-compose-build/prod.yml et dans config/triage.yaml *volumes => data* qui est le volume hôte à monter donc ici ./data)
 ```bash
-mkdir ./data
-mkdir ./winlogbeat
-mkdir ./log
-mkdir ./hayabusa
+mkdir /winlogbeat
+mkdir -p /data/hayabusa
 ```
 - Monter le partage winlogbeat dans le dossier précédement créé
 - Placer le binaire hayabusa et ses dépendances dans le dossier précédement créé
@@ -322,7 +352,7 @@ sudo apt install cifs-utils
 Start docker images
 
 ```bash
-docker compose -f Docker/docker-compose.yml up -d --build
+docker compose -f Docker/docker-compose.yml up -d
 ```
 
 Le service web est disponible sur https://localhost

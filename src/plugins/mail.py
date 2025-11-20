@@ -162,3 +162,5 @@ class Plugin(BasePlugin):
                     plugin="mail", module="attachments", status=Status.ERROR
                 )
             raise ex
+        finally:
+            self.info("[MAIL] End processing")

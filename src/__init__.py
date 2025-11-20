@@ -25,7 +25,7 @@ class BasePlugin(object):
         self.config = config
 
         internal_config = triageutils.INTERNAL_CONFIG
-
+        self.uuid = config["uuid"]
         self.timesketch_url = internal_config["administration"]["Timesketch"]["url"]
         self.is_timesketch_active = internal_config["administration"]["Timesketch"][
             "active"
@@ -53,8 +53,9 @@ class BasePlugin(object):
         self.adaudit_port = internal_config["pipelines"]["adaudit"]
         self.filebeat_port = internal_config["pipelines"]["filebeat"]
         self.selfassessment_port = internal_config["pipelines"]["selfassessment"]
-
         self.orc_port = internal_config["pipelines"]["orc"]
+        self.psort_port = internal_config["pipelines"]["psort"]
+
         self.hayabusa_bin_path = internal_config["general"]["hayabusa_bin_path"]
 
         self.winlogbeat = internal_config["administration"]["Winlogbeat"]["folder"]
@@ -86,7 +87,7 @@ class BasePlugin(object):
 
     def run(self, logger: Logger):
         """Main entry point of the plugin"""
-        raise NotImplementedError("[BasePlugin] run() needs to be overriden")
+        raise NotImplementedError("[BasePlugin] run() needs to be overridden")
 
     def warning(self, msg):
         """Logs a message at WARNING level"""

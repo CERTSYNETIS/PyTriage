@@ -18,6 +18,8 @@ class Plugin(BasePlugin):
             self.adtimeline_dir, f"ADTimeline_{self.clientname}.json"
         )
         triageutils.create_directory_path(path=self.adtimeline_dir, logger=self.logger)
+        self.config["general"]["extracted_zip"] = f"{self.adtimeline_dir}"
+        self.update_config_file(data=self.config)
 
     @triageutils.LOG
     def send_to_elk(self, json_data: list = [], logger=None):
@@ -70,3 +72,5 @@ class Plugin(BasePlugin):
             self.error(f"[ADTimeline] run {str(ex)}")
             self.update_workflow_status(plugin="adtimeline", status=Status.ERROR)
             raise ex
+        finally:
+            self.info("[ADTimeline] End processing")

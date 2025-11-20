@@ -1,5 +1,6 @@
 import struct
 import collections
+from logging import Logger
 from pathlib import Path
 from datetime import datetime
 
@@ -13,8 +14,8 @@ class ParseUSNJRNL:
         self,
         usn_file: Path,
         result_csv_file: Path,
-        result_body_file: Path = None,
-        logger=None,
+        result_body_file: Path,
+        logger: Logger,
     ) -> None:
         self.usn_file = usn_file
         self.result_csv_file = result_csv_file
@@ -154,12 +155,13 @@ class ParseUSNJRNL:
         return " ".join(attributeList)
 
     def analyze(self):
+        _csv_file = None
+        _body_file = None
         try:
             self.logger.info(f"[ParseUSNJRNL] Start parsing -- {self.usn_file}")
             _csv_file = open(self.result_csv_file, "wb")
             if _csv_file is None:
                 raise Exception("[analyze] error in csvfile creation")
-            _body_file = None
             if self.result_body_file:
                 _body_file = open(self.result_body_file, "wb")
             journalSize = self.usn_file.stat().st_size

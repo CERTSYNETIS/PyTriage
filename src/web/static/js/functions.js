@@ -248,16 +248,19 @@ function getlogs(id) {
               $("#collecte_running_div").show();
               $("#download_results_div").hide();
               $("#replayForm").hide();
+              $("#stopForm").show();
             }
-            else if (data.task_status === 'SUCCESS' || data.task_status === 'FAILURE') {
+            else if (['SUCCESS', 'FAILURE', 'REVOKED'].includes(data.task_status)){
               $("#collecte_running_div").hide();
               $("#download_results_div").show();
               $("#replayForm").show();
+              $("#stopForm").hide();
             }
             else{
               $("#collecte_running_div").hide();
               $("#download_results_div").hide();
               $("#replayForm").show();
+              $("#stopForm").hide();
             }
           }
         },
@@ -270,6 +273,7 @@ function getlogs(id) {
       $("#collecte_running_div").hide();
       $("#download_results_div").hide();
       $("#replayForm").show();
+      $("#stopForm").hide();
     }
   }
 
@@ -295,9 +299,14 @@ function getlogs(id) {
     }
   }
 
-  function start_process(params) {
+  function start_process(params, csrf_token) {
     //$("#logs").html("Processing...");
     $.ajax({
+      beforeSend: function(xhr, settings){
+        if(!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain){
+          xhr.setRequestHeader("X-CSRFToken", csrf_token);
+        }
+      },
       type: "POST",
       url: "/process",
       data: JSON.stringify(params),
@@ -315,7 +324,7 @@ function getlogs(id) {
             _myconfig.task_id = data.task_id
             $("#collecte_task_value").html(_myconfig.task_id);
           }
-          $("#download_results_div").show();
+          //$("#download_results_div").show();
         }
       },
       error: function (data) {
@@ -559,6 +568,7 @@ function getlogs(id) {
 
       $("#standalone_collecte").hide();
       $("#replayForm").show();
+      $("#stopForm").hide();
       $("#submitForm").hide();
     }
   }
@@ -643,12 +653,14 @@ function getlogs(id) {
     text = "";
     $("#download_results_div").show();
     $("#replayForm").show();
+    $("#stopForm").hide();
     $("#collecte_running_div").hide();
     for (let i = 0; i < data.running.length; i++) {
       if(data.running[i].uuid == uuid){
         $("#collecte_running_div").show();
         $("#download_results_div").hide();
         $("#replayForm").hide();
+        $("#stopForm").show();
       }
     }
   }
@@ -737,7 +749,7 @@ function getlogs(id) {
           text +=
             '<div id="collecte_plugin_' +
             key +
-            '_row" class="row"><pre id="collecte_plugin_name_' +
+            '_row" class="row"><div class="workflow_status_' + data.workflow[key]["plugin"].status + ' col-1"></div><pre id="collecte_plugin_name_' +
             key +
             '_title" class="col-3">Name</pre><pre id="collecte_plugin_name_' +
             key +
@@ -776,18 +788,8 @@ function getlogs(id) {
   }
 
   function update_plugin_config(plugin_name, plugin_option, new_value) {
-    if (plugin_option) {
-      if(plugin_option == "winlogbeat" && new_value && !_myconfig.run[plugin_name]["evtx"]){
-        _myconfig.run[plugin_name]["evtx"] = true;
-        _myconfig.run[plugin_name][plugin_option] = new_value;
-      }
-      else if(plugin_option == "evtx" && !new_value){
-        _myconfig.run[plugin_name]["winlogbeat"] = false;
-        _myconfig.run[plugin_name][plugin_option] = new_value;
-      }
-      else{
-        _myconfig.run[plugin_name][plugin_option] = new_value;
-      }
+    if (plugin_option) {      
+      _myconfig.run[plugin_name][plugin_option] = new_value;
       populate_plugins_infos(_myconfig);
     } else {
       _myconfig.run[plugin_name] = new_value;
@@ -795,3 +797,123 @@ function getlogs(id) {
     }
   }
 
+
+  function stop_collecte(
+    taskid,
+    csrf_token,
+    frombutton=true
+  ) {
+    if(frombutton)
+    {
+      if (!confirm("Are you sure you want to stop this collecte ?")) {
+        return
+      }
+    }
+    $("#loading_div").show();
+    const value = {
+      taskid: taskid
+    };
+    $.ajax({
+      beforeSend: function(xhr, settings){
+        if(!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain){
+          xhr.setRequestHeader("X-CSRFToken", csrf_token);
+        }
+      },
+      type: "post",
+      url: "/stoptask",
+      data: JSON.stringify(value),
+      contentType: "application/json",
+      success: function (data) {
+        generate_toast(
+          "stop_collecte_" + taskid,
+          data.error
+        );
+      },
+      error: function (data) {
+        generate_toast(
+          "stop_collecte_" + taskid,
+          "Error while stopping task",
+          "text-bg-danger"
+        );
+      },
+      complete: function (data) {
+        $("#loading_div").hide();
+      },
+    });
+    
+  }
+
+  function replay_collecte(config, csrf_token){
+    generate_toast("info_toast", "Replay request sent");
+    $("#loading_div").show();
+    $.ajax({
+      beforeSend: function(xhr, settings){
+        if(!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain){
+          //var csrf_token = "{{ csrf_token() }}";
+          xhr.setRequestHeader("X-CSRFToken", csrf_token);
+        }
+      },
+      url: "/replay",
+      type: "POST",
+      data: JSON.stringify(config),
+      cache: false,
+      contentType: "application/json",
+      processData: false,
+      dataType: "json",
+      success: function (res) {
+        if (res) {
+          if ( res.error) {
+            $("#error_replay").remove();
+            generate_toast("error_replay", res.error, "text-bg-danger");
+            return false;
+          }
+          $(".custom-file-label").html("");
+          start_process(res, csrf_token);
+        }
+      },
+      error: function (res) {
+        if (res) {
+          generate_toast("error_replay", res, "text-bg-danger");
+        }
+      },
+      complete: function () {
+        $("#id_progress_bar").hide();
+        $("#loading_div").hide();
+      },
+    });
+    return false;
+  }
+
+  function admin_replay_collecte(uuid, csrf_token){
+    generate_toast("info_toast", "Replay request sent");
+    $.ajax({
+      beforeSend: function(xhr, settings){
+        if(!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain){
+          xhr.setRequestHeader("X-CSRFToken", csrf_token);
+        }
+      },
+      url: "/adminreplaycollecte",
+      type: "POST",
+      data: JSON.stringify({"uuid": uuid}),
+      cache: false,
+      contentType: "application/json",
+      processData: false,
+      dataType: "json",
+      success: function (res) {
+        if (res) {
+          if (res.error) {
+            $("#error_replay").remove();
+            generate_toast("error_replay", res.error, "text-bg-danger");
+            return false;
+          }
+          start_process(res, csrf_token);
+        }
+      },
+      error: function (res) {
+        if (res) {
+          generate_toast("error_replay", res, "text-bg-danger");
+        }
+      },
+    });
+    return false;
+  }

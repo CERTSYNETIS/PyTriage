@@ -4,7 +4,6 @@ from __future__ import division, unicode_literals
 from collections import OrderedDict
 from ._util import approximate_date
 from .Trash import inspect
-from ..triageutils import delete_file
 from glob import glob
 from pathlib import Path
 from logging import Logger
@@ -97,11 +96,3 @@ class TrashParse(object):
                     jsonf.write("\n")
         except Exception as ex:
             self._logger.error(f"[write_jsonl] {ex}")
-
-
-if __name__ == "__main__":
-    trash = TrashParse("")
-    trash.listfile()
-    trash.parsefile()
-    trash.write_csv(csv_file="")
-    trash.write_jsonl(jsonl_file="")

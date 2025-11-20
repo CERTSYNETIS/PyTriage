@@ -17,6 +17,7 @@ pipelines:
   selfassessment: 5050
   mail: 5061
   google: 5051
+  psort: 5051
 
 administration:
   Timesketch:
@@ -30,6 +31,15 @@ administration:
     port: 9200
     username: xxx
     password: xxx
+    index_patterns:
+      - "ir-lin-*"
+      - "ir-orc-*"
+      - "ir-m365-*"
+      - "ir-ad-*"
+      - "secop-ad-*"
+      - "ir-log-*"
+      - "dlq-*"
+      - "ir-evtx-*"
   Logstash:
     active: false
     url: "https://xxx"
@@ -51,7 +61,7 @@ docker_images:
     tag: "8.9.1"
   volatility3:
     image: volatility3
-    tag: "2.5.0"
+    tag: "2.26.2"
 
 artifacts:
   apache:
@@ -81,3 +91,4 @@ plaso_parsers:
   - "!mft"
   - "!usnjrnl"
   - "!filestat"
+

@@ -57,7 +57,8 @@
             <div class="mb-3">
               <div id="div_plugin_selection_description" class="form-text mb-1">Type de collecte:</div>
               <select id="select_plugin" name="selected_plugin" class="form-select" aria-label="Collection type selector">
-                <option selected value="generaptor">Generaptor</option>
+                <option selected value="generaptor_windows">Generaptor Windows</option>
+                <option value="generaptor_linux">Generaptor Linux</option>
                 <option value="kape">Kape</option>
                 <option value="orc">DFIR-Orc</option>
                 <option value="mail">Mail</option>
@@ -70,471 +71,27 @@
               </select>
             </div>
 
-            <div id="windows_sub_modules" class="form-floating mb-3 generaptor_plugin kape_plugin orc_plugin" style="display: none">
+            <div id="windows_sub_modules" class="form-floating mb-3 generaptor_plugin kape_plugin orc_plugin">
               <div id="windows_options_description" class="form-text mb-1">Options disponibles:</div>
               <ul
                 id="ul_windows_sub_modules"
                 class="list-group mb-2 generaptor_sub_modules kape_sub_modules orc_sub_modules"
               >
                 <li class="list-group-item generaptor_sub_modules kape_sub_modules orc_sub_modules">
-                  <input
-                    id="run_windows_evtx"
-                    name="windows_evtx"
-                    class="form-check-input me-1 generaptor_sub_modules kape_sub_modules orc_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_windows_evtx"
-                    >EVTX</label
-                  >
-                  <div class="form-check form-switch">
-                    <input
-                      class="form-check-input generaptor_sub_modules kape_sub_modules orc_sub_modules"
-                      type="checkbox"
-                      role="switch"
-                      id="windows_evtx_winlogbeat"
-                      name="windows_evtx_winlogbeat"
-                      checked
-                    />
-                    <label
-                      class="form-check-label"
-                      for="windows_evtx_winlogbeat"
-                      >Use WinlogBeat</label
-                    >
-                  </div>
-                  <div class="form-check form-switch">
-                    <input
-                      class="form-check-input generaptor_sub_modules kape_sub_modules orc_sub_modules"
-                      type="checkbox"
-                      role="switch"
-                      id="windows_hayabusa"
-                      name="windows_hayabusa"
-                      checked
-                    />
-                    <label
-                      class="form-check-label"
-                      for="windows_hayabusa"
-                      >Hayabusa</label
-                    >
+                  <div class="row" id="parser_row">
+                    
                   </div>
                 </li>
-                <li class="list-group-item generaptor_sub_modules kape_sub_modules orc_sub_modules">
-                  <input
-                    id="run_windows_iis"
-                    name="windows_iis"
-                    class="form-check-input me-1 generaptor_sub_modules kape_sub_modules orc_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_windows_iis"
-                    >IIS</label
-                  >
-                </li>
-                <li class="list-group-item generaptor_sub_modules kape_sub_modules orc_sub_modules">
-                  <input
-                    id="run_windows_timeline"
-                    name="windows_timeline"
-                    class="form-check-input me-1 generaptor_sub_modules kape_sub_modules orc_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_windows_timeline"
-                    >Plaso Timeline</label
-                  >
-                </li>
-                <li class="list-group-item generaptor_sub_modules kape_sub_modules orc_sub_modules">
-                  <input
-                    id="run_windows_registry"
-                    name="windows_registry"
-                    class="form-check-input me-1 generaptor_sub_modules kape_sub_modules orc_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_windows_registry"
-                    >Registry</label
-                  >
-                </li>
-                <li class="list-group-item generaptor_sub_modules kape_sub_modules orc_sub_modules">
-                  <input
-                    id="run_windows_mft"
-                    name="windows_mft"
-                    class="form-check-input me-1 generaptor_sub_modules kape_sub_modules orc_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_windows_mft"
-                    >MFT</label
-                  >
-                </li>
-                <li class="list-group-item generaptor_sub_modules kape_sub_modules orc_sub_modules">
-                  <input
-                    id="run_windows_usnjrnl"
-                    name="windows_usnjrnl"
-                    class="form-check-input me-1 generaptor_sub_modules kape_sub_modules orc_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_windows_usnjrnl"
-                    >UsnJrnl</label
-                  >
-                </li>
-                <li class="list-group-item generaptor_sub_modules kape_sub_modules orc_sub_modules">
-                  <input
-                    id="run_windows_prefetch"
-                    name="windows_prefetch"
-                    class="form-check-input me-1 generaptor_sub_modules kape_sub_modules orc_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_windows_prefetch"
-                    >Prefetch</label
-                  >
-                </li>
-                <li class="list-group-item generaptor_sub_modules kape_sub_modules">
-                  <input
-                    id="run_windows_mplog"
-                    name="windows_mplog"
-                    class="form-check-input me-1 generaptor_sub_modules kape_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_windows_mplog"
-                    >MPLog</label
-                  >
-                </li>
-                <li class="list-group-item generaptor_sub_modules kape_sub_modules">
-                  <input
-                    id="run_windows_activitiescache"
-                    name="windows_activitiescache"
-                    class="form-check-input me-1 generaptor_sub_modules kape_sub_modules"
-                    type="checkbox"
-                    value=""
-                    checked
-                  />
-                  <label class="form-check-label" for="run_windows_activitiescache"
-                    >ActivitiesCache</label
-                  >
-                </li>
-                <li class="list-group-item generaptor_sub_modules kape_sub_modules">
-                  <input
-                    id="run_windows_recyclebin"
-                    name="windows_recyclebin"
-                    class="form-check-input me-1 generaptor_sub_modules kape_sub_modules"
-                    type="checkbox"
-                    value=""
-                    checked
-                  />
-                  <label class="form-check-label" for="run_windows_recyclebin"
-                    >Recycle Bin</label
-                  >
-                </li>
-                <li class="list-group-item generaptor_sub_modules kape_sub_modules">
-                  <input
-                    id="run_windows_psreadline"
-                    name="windows_psreadline"
-                    class="form-check-input me-1 generaptor_sub_modules kape_sub_modules"
-                    type="checkbox"
-                    value=""
-                    checked
-                  />
-                  <label class="form-check-label" for="run_windows_psreadline"
-                    >Powershell history file</label
-                  >
-                </li>
-                <li class="list-group-item generaptor_sub_modules kape_sub_modules">
-                  <input
-                    id="run_windows_rdpcache"
-                    name="windows_rdpcache"
-                    class="form-check-input me-1 generaptor_sub_modules kape_sub_modules"
-                    type="checkbox"
-                    value=""
-                    checked
-                  />
-                  <label class="form-check-label" for="run_windows_rdpcache"
-                    >RDP Cache</label
-                  >
-                </li>
-                <li class="list-group-item generaptor_sub_modules">
-                  <input
-                    id="run_generaptor_linux"
-                    name="generaptor_linux"
-                    class="form-check-input me-1 generaptor_plugin"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_generaptor_linux"
-                    >Generaptor Linux
-                    <span
-                    class="badge rounded-pill text-bg-light generaptor_sub_modules"
-                    data-bs-toggle="tooltip"
-                    data-bs-placement="right"
-                    data-bs-title="Will execute Filebeat against logs files"
-                    >?</span>
-                  </label>
-                </li>
               </ul>
-              <div id="generaptor_options" class="generaptor_plugin" style="display: none">
-                <div id="div_generaptor_private_key_file" class="form-text mb-1 generaptor_plugin">Clé privée de la collecte</div>
-                <div class="input-group mb-3">
-                  <input
-                    class="form-control generaptor_plugin"
-                    type="file"
-                    id="run_generaptor_private_key_file"
-                    name="generaptor_private_key_file"
-                    accept=".pem"
-                    data-bs-toggle="tooltip"
-                    data-bs-placement="bottom"
-                    data-bs-title="Private key file (.pem)"
-                    aria-describedby="div_generaptor_private_key_file"
-                  />
-                </div>
-                <div class="form-floating mb-3">
-                  <input
-                    id="run_generaptor_private_key_secret"
-                    name="generaptor_private_key_secret"
-                    type="password"
-                    class="form-control generaptor_plugin"
-                    aria-label="key secret"
-                    autocomplete="off"
-                    placeholder="private key secret"
-                  />
-                  <label 
-                    class="generaptor_plugin"
-                    for="run_generaptor_private_key_secret">
-                    private key secret
-                  </label>
-                </div>
-              </div>
 
-              <div id="orc_options" class="orc_plugin" style="display: none">
-                <div id="div_run_orc_certfile" class="form-text mb-1 orc_plugin" style="display: none">Clé privée de la collecte</div>
-                <div class="input-group">
-                  <input
-                    class="form-control orc_plugin"
-                    type="file"
-                    id="run_orc_certfile"
-                    name="orc_keyfile"
-                    accept=".pem"
-                    style="display: none"
-                    aria-describedby="div_run_orc_certfile"
-                  />
-                </div>
+              <div id="collecte_options">
+                <!-- populated in javascript function -->
               </div>
             </div>
-
-            <div id="mail_sub_modules" class="form-floating mb-3 mail_sub_modules" style="display: none">
-              <div id="mail_options_description" class="form-text mb-1">Options disponibles:
-              </div>
-              <ul id="ul_mail_sub_modules" class="list-group">
-                <li class="list-group-item">
-                  <input
-                    id="run_mail_attachments"
-                    name="mail_attachments"
-                    class="form-check-input me-1 mail_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label class="form-check-label" for="run_mail_attachments"
-                    >Extract attachments</label
-                  >
-                </li>
-              </ul>
-            </div>
-            
-            <div id="uac_sub_modules" class="form-floating mb-3 uac_sub_modules" style="display: none">
-              <div id="uac_options_description" class="form-text mb-1">Options disponibles:
-              </div>
-              <ul
-                id="ul_uac_sub_modules"
-                class="list-group"
-              >
-                <li class="list-group-item">
-                  <input
-                    id="run_uac_filebeat"
-                    name="uac_filebeat"
-                    class="form-check-input me-1 uac_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_uac_filebeat"
-                    >Filebeat</label
-                  >
-                </li>
-                <li class="list-group-item">
-                  <input
-                    id="run_uac_timeline"
-                    name="uac_timeline"
-                    class="form-check-input me-1 uac_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_uac_timeline"
-                    >Plaso Timeline</label
-                  >
-                </li>
-              </ul>
-            </div>
-
-            <div id="volatility_sub_modules" class="form-floating mb-3 volatility_sub_modules" style="display: none">
-              <div id="volatility_options_description" class="form-text mb-1">Options disponibles:
-              </div>
-              <ul
-                id="ul_volatility_sub_modules"
-                class="list-group"
-              >
-                <li class="list-group-item">
-                  <input
-                    id="run_volatility_pslist"
-                    name="volatility_pslist"
-                    class="form-check-input me-1 volatility_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_volatility_pslist"
-                    >Windows pslist</label
-                  >
-                </li>
-                <li class="list-group-item">
-                  <input
-                    id="run_volatility_pstree"
-                    name="volatility_pstree"
-                    class="form-check-input me-1 volatility_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_volatility_pstree"
-                    >Windows pstree</label
-                  >
-                </li>
-                <li class="list-group-item">
-                  <input
-                    id="run_volatility_netscan"
-                    name="volatility_netscan"
-                    class="form-check-input me-1 volatility_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_volatility_netscan"
-                    >Windows netscan</label
-                  >
-                </li>
-                <li class="list-group-item">
-                  <input
-                    id="run_volatility_netstat"
-                    name="volatility_netstat"
-                    class="form-check-input me-1 volatility_sub_modules"
-                    type="checkbox"
-                    value=""
-                  />
-                  <label
-                    class="form-check-label"
-                    for="run_volatility_netstat"
-                    >Windows netstat</label
-                  >
-                </li>
-              </ul>
-            </div>
-            
           </div>
-          <div id="div_description_collecte" class="form-text mb-1">Fichier de collecte de la machine
-            <span
-                class="badge rounded-pill text-bg-light generaptor_plugin"
-                data-bs-toggle="tooltip"
-                data-bs-placement="right"
-                data-bs-title="Expected Generaptor generated ZIP archive"
-                style="display: none;"
-                >?</span>
-                <span
-                class="badge rounded-pill text-bg-light kape_plugin"
-                data-bs-toggle="tooltip"
-                data-bs-placement="right"
-                data-bs-title="Expected ZIP archive containing VHDX file"
-                style="display: none;"
-                >?</span>
-                <span
-                class="badge rounded-pill text-bg-light orc_plugin"
-                data-bs-toggle="tooltip"
-                data-bs-placement="right"
-                data-bs-title="Expected DFIR-ORC generated 7z archive, if encrypted give private key"
-                style="display: none;"
-                >?</span>
-                <span
-                class="badge rounded-pill text-bg-light mail_plugin"
-                data-bs-toggle="tooltip"
-                data-bs-placement="right"
-                data-bs-title="Expected ZIP archive containing PST/MBOX files"
-                style="display: none;"
-                >?</span>
-                <span
-                class="badge rounded-pill text-bg-light o365_plugin"
-                data-bs-toggle="tooltip"
-                data-bs-placement="right"
-                data-bs-title="Expected ZIP archive produced by DFIR-O365RC"
-                style="display: none;"
-                >?</span>
-                <span
-                class="badge rounded-pill text-bg-light uac_plugin"
-                data-bs-toggle="tooltip"
-                data-bs-placement="right"
-                data-bs-title="Expected TAR archive"
-                style="display: none;"
-                >?</span>
-                <span
-                class="badge rounded-pill text-bg-light adtimeline_plugin"
-                data-bs-toggle="tooltip"
-                data-bs-placement="right"
-                data-bs-title="Expected CSV file"
-                style="display: none;"
-                >?</span>
-                <span
-                class="badge rounded-pill text-bg-light adaudit_plugin"
-                data-bs-toggle="tooltip"
-                data-bs-placement="right"
-                data-bs-title="Expected ADAudit generated ZIP archive"
-                style="display: none;"
-                >?</span>
-                <span
-                class="badge rounded-pill text-bg-light google_plugin"
-                data-bs-toggle="tooltip"
-                data-bs-placement="right"
-                data-bs-title="Expected Google Workspace generated ZIP archive"
-                style="display: none;"
-                >?</span>
-                <span
-                class="badge rounded-pill text-bg-light volatility_plugin"
-                data-bs-toggle="tooltip"
-                data-bs-placement="right"
-                data-bs-title="Expected memory dump file"
-                style="display: none;"
-                >?</span>
+
+          <div id="div_description_collecte" class="form-text mb-1">
+          <!-- populated in javascript function -->
           </div>
           <div id="archive_file" class="input-group mb-3">
             <input
@@ -542,12 +99,11 @@
               type="file"
               id="archive"
               name="archive"
-              accept=".zip, .tar, .tar.gz, .csv, .raw, .7z, .7z.p7b"
+              accept=".zip, .tar, .tar.gz, .csv, .raw, .7z, .7z.p7b, .mem"
               aria-describedby="div_description_collecte"
               required
             />
           </div>
-          
           <button
             id="submitForm"
             class="btn btn-outline-primary my-2 my-sm-0"
@@ -738,30 +294,157 @@
       (tooltipTriggerEl) => new bootstrap.Tooltip(tooltipTriggerEl)
     );
     
-    const PLUGINS = ["kape", "uac", "hayabusa", "adtimeline", "volatility", "o365", "adaudit", "generaptor", "orc", "mail", "google"];
+    const _PLUGIN = {
+      "kape": {
+        "parser": [{"name": "windows_evtx_python", "checked": false}, {"name": "windows_evtx_winlogbeat", "checked": true}, {"name": "windows_hayabusa", "checked": true}, {"name": "windows_iis", "checked": true}, {"name": "windows_plaso", "checked": true}, {"name": "windows_registry", "checked": true}, {"name": "windows_mft", "checked": true}, {"name": "windows_usnjrnl", "checked": true}, {"name": "windows_prefetch", "checked": true}, {"name": "windows_mplog", "checked": true}, {"name": "windows_activitiescache", "checked": true}, {"name": "windows_recyclebin", "checked": true}, {"name": "windows_psreadline", "checked": true}, {"name": "windows_rdpcache", "checked": true}, {"name": "windows_lnk", "checked": true}, {"name": "windows_jumplist", "checked": true}, {"name": "windows_tasks", "checked": true}, {"name": "windows_webcache", "checked": true}],
+        "files": [],
+        "private_key_secret": false,
+        "input_file_desc": "Expected ZIP archive containing VHDX file"
+      }, 
+      "uac": {
+        "parser": [{"name": "uac_filebeat", "checked": true}, {"name": "uac_plaso", "checked": true}],
+        "files": [],
+        "private_key_secret": false,
+        "input_file_desc": "Expected TAR archive"
+      },
+      "adtimeline": {
+        "parser": [],
+        "files": [],
+        "private_key_secret": false,
+        "input_file_desc": "Expected CSV file"
+      }, 
+      "volatility": {
+        "parser": [{"name": "volatility_pslist", "checked": true}, {"name": "volatility_pstree", "checked": true}, {"name": "volatility_netscan", "checked": true}, {"name": "volatility_netstat", "checked": true}],
+        "files": [],
+        "private_key_secret": false,
+        "input_file_desc": "Expected memory dump file"
+      }, 
+      "o365": {
+        "parser": [],
+        "files": [],
+        "private_key_secret": false,
+        "input_file_desc": "Expected ZIP archive produced by DFIR-O365RC"
+      }, 
+      "adaudit": {
+        "parser": [],
+        "files": [],
+        "private_key_secret": false,
+        "input_file_desc": "Expected ADAudit generated ZIP archive"
+      }, 
+      "generaptor_windows": {
+        "parser": [{"name": "windows_evtx_python", "checked": false}, {"name": "windows_evtx_winlogbeat", "checked": true}, {"name": "windows_hayabusa", "checked": true}, {"name": "windows_iis", "checked": true}, {"name": "windows_plaso", "checked": true}, {"name": "windows_registry", "checked": true}, {"name": "windows_mft", "checked": true}, {"name": "windows_usnjrnl", "checked": true}, {"name": "windows_prefetch", "checked": true}, {"name": "windows_mplog", "checked": true}, {"name": "windows_activitiescache", "checked": true}, {"name": "windows_recyclebin", "checked": true}, {"name": "windows_psreadline", "checked": true}, {"name": "windows_rdpcache", "checked": true}, {"name": "windows_lnk", "checked": true}, {"name": "windows_jumplist", "checked": true}, {"name": "windows_tasks", "checked": true}, {"name": "windows_webcache", "checked": true}],
+        "files": [{"name": "generaptor_private_key_file", "description": "Private key file (.pem)", "accept": ".pem"}],
+        "private_key_secret": true,
+        "input_file_desc": "Expected Generaptor generated ZIP archive"
+      },
+      "generaptor_linux": {
+        "parser": [{"name": "linux_filebeat", "checked": true}, {"name": "linux_plaso", "checked": true}],
+        "files": [{"name": "generaptor_private_key_file", "description": "Private key file (.pem)", "accept": ".pem"}],
+        "private_key_secret": true,
+        "input_file_desc": "Expected Generaptor generated ZIP archive"
+      }, 
+      "orc": {
+        "parser": [{"name": "windows_evtx_python", "checked": false}, {"name": "windows_evtx_winlogbeat", "checked": true}, {"name": "windows_hayabusa", "checked": true}, {"name": "windows_plaso", "checked": true}, {"name": "windows_registry", "checked": true}, {"name": "windows_mft", "checked": true}, {"name": "windows_usnjrnl", "checked": true}, {"name": "windows_prefetch", "checked": true}, {"name": "windows_mplog", "checked": true}, {"name": "windows_activitiescache", "checked": true}, {"name": "windows_recyclebin", "checked": true}, {"name": "windows_psreadline", "checked": true}, {"name": "windows_rdpcache", "checked": true}, {"name": "windows_lnk", "checked": true}, {"name": "windows_jumplist", "checked": true}, {"name": "windows_tasks", "checked": true}, {"name": "windows_webcache", "checked": true}],
+        "files": [{"name": "orc_keyfile", "description": "Private key file (.key)", "accept": ".key"}],
+        "private_key_secret": false,
+        "input_file_desc": "Expected DFIR-ORC generated 7z / 7zp7b archive, if encrypted give private key"
+      }, 
+      "mail": {
+        "parser": [{"name": "mail_attachments", "checked": true}],
+        "files": [],
+        "private_key_secret": false,
+        "input_file_desc": "Expected ZIP archive containing PST/MBOX files"
+      }, 
+      "google": {
+        "parser": [],
+        "files": [],
+        "private_key_secret": false,
+        "input_file_desc": "Expected Google Workspace generated ZIP archive"
+      }
+    }
     
-    display_plugin_options("generaptor");
-    $('#run_generaptor_linux').prop("checked", false);
-    $("#run_hayabusa").prop("checked", true);
+    function _display_plugin_options(plugin){
+      _elem = ""
+      for( const [key, value] of Object.entries(_PLUGIN[plugin].parser))
+      {
+        _checked = value.checked ? "checked" : ""
+        _elem += '<div class="col-md-auto mb-3 generaptor_sub_modules kape_sub_modules orc_sub_modules" style="border-radius: var(--bs-border-radius-pill) ; border: 1px dashed #6ba4f7; margin-right: 1rem;">\
+            <input\
+              id="'+value.name+'"\
+              name="'+value.name+'"\
+              class="form-check-input me-1 generaptor_sub_modules kape_sub_modules orc_sub_modules"\
+              type="checkbox"\
+              value="" '+ _checked +'\
+            />\
+            <label\
+              class="form-check-label"\
+              for="'+value.name+'"\
+              >'+value.name+'</label\
+            >\
+          </div>';
+      }
+      $('#parser_row').html(_elem);
+      
+      _description_input_file = 'Fichier de collecte de la machine<span\
+              id="description_input_file"\
+              class="badge rounded-pill text-bg-light generaptor_plugin"\
+              data-bs-toggle="tooltip"\
+              data-bs-placement="right"\
+              data-bs-title="'+_PLUGIN[plugin].input_file_desc+'"\
+              style=""\
+              >?</span>';
+      $('#div_description_collecte').html(_description_input_file);
+      $('#description_input_file').tooltip();
+      
+      _collecte_options = "";
+      for( var _file in _PLUGIN[plugin].files)
+      {
+        _collecte_options += '<div id="div_private_key_file" class="form-text mb-1">Clé privée de la collecte</div>\
+                <div class="input-group mb-3">\
+                  <input\
+                    class="form-control"\
+                    type="file"\
+                    id="private_key_file"\
+                    name="'+_PLUGIN[plugin].files[_file].name+'"\
+                    accept="'+_PLUGIN[plugin].files[_file].accept+'"\
+                    data-bs-toggle="tooltip"\
+                    data-bs-placement="bottom"\
+                    data-bs-title="'+_PLUGIN[plugin].files[_file].description+'"\
+                    aria-describedby="div_private_key_file"\
+                  />\
+                </div>';
+        if (_PLUGIN[plugin].private_key_secret){
+          _collecte_options += '<div class="form-floating mb-3">\
+                  <input\
+                    id="run_private_key_secret"\
+                    name="private_key_secret"\
+                    type="password"\
+                    class="form-control"\
+                    aria-label="key secret"\
+                    autocomplete="off"\
+                    placeholder="private key secret"\
+                  />\
+                  <label \
+                    class=""\
+                    for="run_private_key_secret">\
+                    private key secret\
+                  </label>\
+                </div>';
+        }
+        _collecte_options += '</div>';
+      }
+      $('#collecte_options').html(_collecte_options);
+      $('#private_key_file').tooltip();
+    }
+    
+    _display_plugin_options("generaptor_windows");    
 
     getAllClients();
     getMachineUsage();
     getRunningCollectes();
     
     $('#select_plugin').change(function () {
-      display_plugin_options(this.value);
-    });
-
-    $('#run_generaptor_linux').change(function(){
-      if(this.checked){
-        $(".kape_sub_modules").prop("checked", false);
-        $(".kape_sub_modules").prop("disabled", true);
-        $("#run_windows_timeline").prop("disabled", false);
-      }
-      else{
-        $(".kape_sub_modules").prop("checked", true);
-        $(".kape_sub_modules").prop("disabled", false);
-      }
+      _display_plugin_options(this.value);
     });
 
     $("#loading_div").hide();
@@ -798,6 +481,12 @@
           );
           return xhr;
         },
+        beforeSend: function(xhr, settings){
+          if(!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain){
+            var csrf_token = "{{ csrf_token() }}";
+            xhr.setRequestHeader("X-CSRFToken", csrf_token);
+          }
+        },
         url: "/",
         type: "POST",
         data: data,
@@ -807,15 +496,14 @@
         dataType: "json",
         success: function (res) {
           if (res) {
-            var txt = "";
-            //txt = "Id de triage: " + res.uuid + "<br>";
-            txt = '<a target="_blank" href="/collecte/'+ res.uuid + '" class="btn btn-outline-primary btn-sm">View details</a>';
-            generate_toast("id_triage_"+res.uuid, txt);
             $(".custom-file-label").html("");
             if (res.error.length == 0) {
               $("#archive").val(null);
               $("#archive").prop("required", true);
-              start_process(res);
+              start_process(res, "{{ csrf_token() }}");
+              var txt = "";
+              txt = 'Informations:<br><a target="_blank" href="/collecte/'+ res.uuid + '" class="btn btn-outline-primary btn-sm">View details</a>';
+              generate_toast("id_triage_"+res.uuid, txt);
             } 
             else {
               console.log("Error: " + res.error);
@@ -840,53 +528,6 @@
       return false;
     }); // Submit the form
 
-    function display_plugin_options(plugin)
-    {
-      //Hide plugins options
-      for (var _p=0; _p < PLUGINS.length; _p++) {
-        $("."+PLUGINS[_p]+"_plugin").hide();
-        $("#run_"+PLUGINS[_p]).prop("checked", false);
-        try{
-          $("#run_"+PLUGINS[_p]+"_private_key_file").prop("required", false);
-        }
-        catch(err){ console.log(err);}
-        try{
-          $("#run_"+PLUGINS[_p]+"_private_key_secret").prop("required", false);
-        }
-        catch(err){ console.log(err);}
-        try{
-          $("."+PLUGINS[_p]+"_sub_modules").hide();
-          $("."+PLUGINS[_p]+"_sub_modules").prop("disabled", false);
-        }
-        catch(err){ console.log(err);}
-        try{
-          $("."+PLUGINS[_p]+"_sub_modules").prop("checked", false);
-        }
-        catch(err){ console.log(err);}
-      
-      }
-
-      //Show selected plugin options
-      $("."+plugin+"_plugin").show();
-      try{
-        $("#run_"+plugin+"_private_key_file").prop("required", true);
-      }
-      catch(err){ console.log(err);}
-      try{
-        $("#run_"+plugin+"_private_key_secret").prop("required", true);
-      }
-      catch(err){ console.log(err);}
-      try{
-        $("."+plugin+"_sub_modules").show();
-      }
-      catch(err){ console.log(err);}
-      try{
-        $("."+plugin+"_sub_modules").prop("checked", true);
-      }
-      catch(err){ console.log(err);}
-
-      $('#run_generaptor_linux').prop("checked", false);
-    }
   });
 
   $("#config").on("change", function () {
@@ -911,7 +552,6 @@
     data.append("hostname", $("#standaloneModal_input_hostname").val());
     data.append("run_plugin", $("#standaloneModal_run_plugin").val());
     data.append("archive", $("#standaloneModal_file").prop("files")[0]);
-
     generate_toast("info_toast", "Sending File...");
     $("#loading_div").show();
     $("#standaloneModal").modal("hide");
@@ -935,6 +575,12 @@
         );
         return xhr;
       },
+      beforeSend: function(xhr, settings){
+        if(!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain){
+          var csrf_token = "{{ csrf_token() }}";
+          xhr.setRequestHeader("X-CSRFToken", csrf_token);
+        }
+      },
       url: "/standalone_input_file",
       type: "POST",
       data: data,
@@ -946,16 +592,15 @@
         if (res) {
           var txt = "";
           if (res.error) {
-            for (let i = 0; i < res.error.length; i++) {
-              var err = res.error[i].name + " : ";
-              err += res.error[i].status;
-              generate_toast("error_" + i, err, "text-bg-danger");
-            }
+            console.log(res)
+            generate_toast("error_standalone", res.error, "text-bg-danger");
           }
-          txt = '<a target="_blank" href="/collecte/'+ res.uuid + '" class="btn btn-outline-primary btn-sm">View details</a>';
-          generate_toast("id_triage_"+res.uuid, txt);
-          $(".custom-file-label").html("");
-          start_process(res);
+          else{
+            txt = 'Informations:<br><a target="_blank" href="/collecte/'+ res.uuid + '" class="btn btn-outline-primary btn-sm">View details</a>';
+            generate_toast("id_triage_"+res.uuid, txt);
+            $(".custom-file-label").html("");
+            start_process(res, "{{ csrf_token() }}");
+          }
         }
       },
       error: function (res) {

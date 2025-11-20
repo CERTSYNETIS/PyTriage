@@ -251,7 +251,7 @@ class MBOXParser:
                         pass
             self.write_json(
                 content=email,
-                output_file=self.output_dir / Path(f"{self.mbox_path.stem}.json"),
+                output_file=self.output_dir / f"{self.mbox_path.stem}.json",
             )
         except Exception as e:
             self.logger.error(f"[run] {str(e)}")

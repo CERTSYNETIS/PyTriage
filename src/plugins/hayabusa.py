@@ -15,11 +15,7 @@ class Plugin(BasePlugin):
         super().__init__(config=conf)
         try:
             _evtx_folder = next(
-                triageutils.search_files_by_extension_generator(
-                    src=Path(conf["general"]["extracted_zip"]).parent,
-                    extension=".evtx",
-                    logger=self.logger,
-                )
+                Path(conf["general"]["extracted_zip"]).parent.rglob("*.evtx"), None
             )
             if _evtx_folder:
                 self.evtx_dir = _evtx_folder.parent
@@ -35,6 +31,7 @@ class Plugin(BasePlugin):
             self.output_json = f"{self.hayabusa_dir}/HAYABUSA_SIGMA.jsonl"
         except Exception as ex:
             self.error(f"[init] {ex}")
+            self.update_workflow_status(plugin="hayabusa", status=Status.ERROR)
             raise ex
 
     @triageutils.LOG
@@ -185,3 +182,5 @@ class Plugin(BasePlugin):
             self.error(f"[HAYABUSA] run {str(ex)}")
             self.update_workflow_status(plugin="hayabusa", status=Status.ERROR)
             raise ex
+        finally:
+            self.info("[HAYABUSA] End processing")

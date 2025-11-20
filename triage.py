@@ -5,6 +5,7 @@ import pkg_resources
 import secrets
 from functools import wraps
 from datetime import datetime
+from pathlib import Path
 from src.thirdparty import triageutils
 from src.thirdparty import admin_utils
 from src.thirdparty.AESCipher import AESCipher
@@ -36,6 +37,7 @@ from flask_login import (
     logout_user,
     current_user,
 )
+from flask_wtf.csrf import CSRFProtect, CSRFError
 from werkzeug.utils import secure_filename
 import hashlib
 import uuid
@@ -69,6 +71,9 @@ app.config["SECRET_KEY"] = secrets.token_hex(32)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"  # type: ignore #route de login
+login_manager.session_protection = "strong"
+csrf = CSRFProtect()
+csrf.init_app(app)
 
 
 # --- Check Admin Decorator ---
@@ -93,6 +98,14 @@ def recursive_items(dictionary: dict):
             yield (key, value)
 
 
+def is_valid_uuid(val: str):
+    try:
+        uuid.UUID(val)
+        return True
+    except ValueError:
+        return False
+
+
 def check_config(conf: dict):
     try:
         keys = []
@@ -110,8 +123,6 @@ def check_config(conf: dict):
             raise Exception("[check_config] run key not in config")
         if "archive" not in keys:
             raise Exception("[check_config] archive key not in config")
-        if "auto_close_collecte" not in keys:
-            raise Exception("[check_config] auto_close_collecte key not in config")
     except Exception as err:
         raise err
 
@@ -149,7 +160,6 @@ def load_plugin_old(plugin_name):
     """
     eps = generate_entry_points()
     for ep in pkg_resources.iter_entry_points(group="triage_plugins"):
-        print(ep)
         if ep.name == plugin_name:
             return ep.load()
     raise ValueError(f"No such plugin: {plugin_name}")
@@ -174,6 +184,11 @@ def load_plugin(plugin_name, entry_points):
 def not_found(e):
     flash("Page not found", "text-bg-warning")
     return redirect(url_for("home"))
+
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    return jsonify(status=False, error="The CSRF session token is missing")
 
 
 @app.errorhandler(401)
@@ -296,9 +311,8 @@ def admin_page():
 @app.route("/collecte/<string:uuid>", methods=["GET"])
 @login_required
 def collecte_page(uuid: str = ""):
-    _opened = True
-    if not uuid:
-        _config = generate_config()
+    if not uuid or not is_valid_uuid(val=uuid):
+        return home()
     else:
         _config = _get_collecte_by_id(uuid=uuid)
     if not _config.setdefault("uuid", ""):
@@ -311,7 +325,7 @@ def collecte_page(uuid: str = ""):
     )
 
 
-def generate_config() -> dict:
+def generate_config(plugin:str) -> dict:
     res = dict()
     res["uuid"] = ""
     res["task_id"] = ""
@@ -322,96 +336,113 @@ def generate_config() -> dict:
     res["general"]["hostname"] = ""
     res["general"]["timesketch_id"] = 0
     res["general"]["replay"] = 0
-    res["general"]["auto_close_collecte"] = True
+    res["general"]["triagetime"] = ""
     res["workflow"] = dict()
     res["path"] = ""
     res["log_file"] = ""
     res["run"] = dict()
-    res["run"]["kape"] = dict()
-    res["run"]["kape"]["plugin"] = False
-    res["run"]["kape"]["evtx"] = False
-    res["run"]["kape"]["iis"] = False
-    res["run"]["kape"]["timeline"] = False
-    res["run"]["kape"]["winlogbeat"] = False
-    res["run"]["kape"]["registry"] = False
-    res["run"]["kape"]["usnjrnl"] = False
-    res["run"]["kape"]["mft"] = False
-    res["run"]["kape"]["prefetch"] = False
-    res["run"]["kape"]["mplog"] = False
-    res["run"]["kape"]["activitiescache"] = False
-    res["run"]["kape"]["recyclebin"] = False
-    res["run"]["kape"]["psreadline"] = False
-    res["run"]["kape"]["rdpcache"] = False
-
-    res["run"]["uac"] = dict()
-    res["run"]["uac"]["plugin"] = False
-    res["run"]["uac"]["filebeat"] = False
-    res["run"]["uac"]["timeline"] = False
-
-    res["run"]["volatility"] = dict()
-    res["run"]["volatility"]["plugin"] = False
-    res["run"]["volatility"]["pslist"] = False
-    res["run"]["volatility"]["pstree"] = False
-    res["run"]["volatility"]["netscan"] = False
-    res["run"]["volatility"]["netstat"] = False
-
-    res["run"]["adtimeline"] = False
-    res["run"]["o365"] = False
-
-    res["run"]["generaptor"] = dict()
-    res["run"]["generaptor"]["plugin"] = False
-    res["run"]["generaptor"]["private_key_file"] = ""
-    res["run"]["generaptor"]["private_key_secret"] = ""
-    res["run"]["generaptor"]["evtx"] = False
-    res["run"]["generaptor"]["winlogbeat"] = False
-    res["run"]["generaptor"]["iis"] = False
-    res["run"]["generaptor"]["timeline"] = False
-    res["run"]["generaptor"]["registry"] = False
-    res["run"]["generaptor"]["mft"] = False
-    res["run"]["generaptor"]["usnjrnl"] = False
-    res["run"]["generaptor"]["prefetch"] = False
-    res["run"]["generaptor"]["mplog"] = False
-    res["run"]["generaptor"]["linux"] = False
-    res["run"]["generaptor"]["activitiescache"] = False
-    res["run"]["generaptor"]["recyclebin"] = False
-    res["run"]["generaptor"]["psreadline"] = False
-    res["run"]["generaptor"]["rdpcache"] = False
-
-    res["run"]["mail"] = dict()
-    res["run"]["mail"]["plugin"] = False
-    res["run"]["mail"]["attachments"] = False
-
-    res["run"]["google"] = dict()
-    res["run"]["google"]["plugin"] = False
-
-    res["run"]["orc"] = dict()
-    res["run"]["orc"]["plugin"] = False
-    res["run"]["orc"]["private_key_file"] = ""
-    res["run"]["orc"]["evtx"] = False
-    res["run"]["orc"]["winlogbeat"] = False
-    res["run"]["orc"]["iis"] = False
-    res["run"]["orc"]["timeline"] = False
-    res["run"]["orc"]["registry"] = False
-    res["run"]["orc"]["mft"] = False
-    res["run"]["orc"]["usnjrnl"] = False
-    res["run"]["orc"]["prefetch"] = False
-    res["run"]["orc"]["mplog"] = False
-    res["run"]["orc"]["activitiescache"] = False
-    res["run"]["orc"]["recyclebin"] = False
-
-    res["run"]["adaudit"] = dict()
-    res["run"]["adaudit"]["plugin"] = False
-
-    res["run"]["standalone"] = dict()
-    res["run"]["standalone"]["plugin"] = False
-    res["run"]["standalone"]["hayabusa"] = False
-    res["run"]["standalone"]["evtx"] = False
-    res["run"]["standalone"]["winlogbeat"] = False
-    res["run"]["standalone"]["fortinet"] = False
-    res["run"]["standalone"]["forcepoint"] = False
-
-    res["run"]["hayabusa"] = False
-
+    match plugin:
+        case "kape":
+            res["run"]["kape"] = dict()
+            res["run"]["kape"]["plugin"] = False
+            res["run"]["kape"]["evtx"] = False
+            res["run"]["kape"]["iis"] = False
+            res["run"]["kape"]["plaso"] = False
+            res["run"]["kape"]["winlogbeat"] = False
+            res["run"]["kape"]["registry"] = False
+            res["run"]["kape"]["usnjrnl"] = False
+            res["run"]["kape"]["mft"] = False
+            res["run"]["kape"]["prefetch"] = False
+            res["run"]["kape"]["mplog"] = False
+            res["run"]["kape"]["activitiescache"] = False
+            res["run"]["kape"]["recyclebin"] = False
+            res["run"]["kape"]["psreadline"] = False
+            res["run"]["kape"]["rdpcache"] = False
+            res["run"]["kape"]["lnk"] = False
+            res["run"]["kape"]["jumplist"] = False
+            res["run"]["kape"]["tasks"] = False
+            res["run"]["kape"]["webcache"] = False
+            res["run"]["kape"]["hayabusa"] = False
+        case "uac":
+            res["run"]["uac"] = dict()
+            res["run"]["uac"]["plugin"] = False
+            res["run"]["uac"]["filebeat"] = False
+            res["run"]["uac"]["plaso"] = False
+        case "volatility":
+            res["run"]["volatility"] = dict()
+            res["run"]["volatility"]["plugin"] = False
+            res["run"]["volatility"]["pslist"] = False
+            res["run"]["volatility"]["pstree"] = False
+            res["run"]["volatility"]["netscan"] = False
+            res["run"]["volatility"]["netstat"] = False
+        case "adtimeline":
+            res["run"]["adtimeline"] = False
+        case "o365":
+            res["run"]["o365"] = False
+        case "generaptor":
+            res["run"]["generaptor"] = dict()
+            res["run"]["generaptor"]["plugin"] = False
+            res["run"]["generaptor"]["private_key_file"] = ""
+            res["run"]["generaptor"]["private_key_secret"] = ""
+            res["run"]["generaptor"]["evtx"] = False
+            res["run"]["generaptor"]["winlogbeat"] = False
+            res["run"]["generaptor"]["iis"] = False
+            res["run"]["generaptor"]["plaso"] = False
+            res["run"]["generaptor"]["registry"] = False
+            res["run"]["generaptor"]["mft"] = False
+            res["run"]["generaptor"]["usnjrnl"] = False
+            res["run"]["generaptor"]["prefetch"] = False
+            res["run"]["generaptor"]["mplog"] = False
+            res["run"]["generaptor"]["linux_filebeat"] = False
+            res["run"]["generaptor"]["linux_plaso"] = False
+            res["run"]["generaptor"]["activitiescache"] = False
+            res["run"]["generaptor"]["recyclebin"] = False
+            res["run"]["generaptor"]["psreadline"] = False
+            res["run"]["generaptor"]["rdpcache"] = False
+            res["run"]["generaptor"]["lnk"] = False
+            res["run"]["generaptor"]["jumplist"] = False
+            res["run"]["generaptor"]["tasks"] = False
+            res["run"]["generaptor"]["webcache"] = False
+            res["run"]["generaptor"]["hayabusa"] = False
+        case "mail":
+            res["run"]["mail"] = dict()
+            res["run"]["mail"]["plugin"] = False
+            res["run"]["mail"]["attachments"] = False
+        case "google":
+            res["run"]["google"] = dict()
+            res["run"]["google"]["plugin"] = False
+        case "orc":
+            res["run"]["orc"] = dict()
+            res["run"]["orc"]["plugin"] = False
+            res["run"]["orc"]["private_key_file"] = ""
+            res["run"]["orc"]["evtx"] = False
+            res["run"]["orc"]["winlogbeat"] = False
+            res["run"]["orc"]["plaso"] = False
+            res["run"]["orc"]["registry"] = False
+            res["run"]["orc"]["mft"] = False
+            res["run"]["orc"]["usnjrnl"] = False
+            res["run"]["orc"]["prefetch"] = False
+            res["run"]["orc"]["mplog"] = False
+            res["run"]["orc"]["activitiescache"] = False
+            res["run"]["orc"]["recyclebin"] = False
+            res["run"]["orc"]["psreadline"] = False
+            res["run"]["orc"]["rdpcache"] = False
+            res["run"]["orc"]["lnk"] = False
+            res["run"]["orc"]["jumplist"] = False
+            res["run"]["orc"]["tasks"] = False
+            res["run"]["orc"]["webcache"] = False
+            res["run"]["orc"]["hayabusa"] = False
+        case "adaudit":
+            res["run"]["adaudit"] = dict()
+            res["run"]["adaudit"]["plugin"] = False
+        case "standalone":
+            res["run"]["standalone"] = dict()
+            res["run"]["standalone"]["plugin"] = False
+            res["run"]["standalone"]["hayabusa"] = False
+            res["run"]["standalone"]["evtx"] = False
+            res["run"]["standalone"]["winlogbeat"] = False
+            res["run"]["standalone"]["fortinet"] = False
+            res["run"]["standalone"]["forcepoint"] = False
     res["archive"] = dict()
     res["archive"]["name"] = ""
     res["archive"]["sha256"] = ""
@@ -436,48 +467,37 @@ def get_cpu_memory_usage():
 @login_required
 def set_input_files():
     try:
-        res = generate_config()
+        if not request.form.get("client", None) or not request.form.get("hostname", None):
+            raise Exception("[set_input_files] Client or Hostname NOT SET")
+        _selected_plugin = request.form.get("selected_plugin", "")
+        _config_generate_plugin = "generaptor" if _selected_plugin in ["generaptor_windows", "generaptor_linux"] else _selected_plugin
+        res = generate_config(plugin=_config_generate_plugin)
         collecte_id = str(uuid.uuid4())
         l = get_logger(name=collecte_id)
-        if not request.form.get("client", None):
-            raise Exception("No valid input")
         ex_dir = os.path.join(UPLOAD_FOLDER, collecte_id)
         triageutils.set_logger(l)
         triageutils.create_directory_path(path=ex_dir, logger=l)
-
         res["uuid"] = collecte_id
         res["general"]["extract"] = ex_dir
-        res["general"]["client"] = slugify(request.form.get("client", ""))
-        res["general"]["hostname"] = slugify(request.form.get("hostname", ""))
-        res["general"]["timesketch_id"] = 0
-        res["general"]["replay"] = 0
-        res["general"]["auto_close_collecte"] = True
-
-        if not res["general"]["client"] or not res["general"]["hostname"]:
-            l.error("[set_input_files] Client or Hostname NOT SET")
-            res["error"] = "[set_input_files] Client or Hostname NOT SET"
-
+        res["general"]["client"] = slugify(request.form.get("client", "")).lower()
+        res["general"]["hostname"] = slugify(request.form.get("hostname", "")).lower()
+        res["general"]["triagetime"] = str(datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
         res["path"] = ex_dir
         res["log_file"] = f"{collecte_id}.log"
 
-        _selected_plugin = request.form.get("selected_plugin", "")
         match _selected_plugin:
             case "kape":
                 ##RUN KAPE
                 res["run"]["kape"]["plugin"] = True
                 res["run"]["kape"]["evtx"] = (
-                    True if "windows_evtx" in request.form else False
+                    True if "windows_evtx_python" in request.form else False
                 )
-                if not res["run"]["kape"]["evtx"]:
-                    res["run"]["kape"]["winlogbeat"] = False
-                    res["run"]["hayabusa"] = False
-                else:
-                    res["run"]["kape"]["winlogbeat"] = (
-                        True if "windows_evtx_winlogbeat" in request.form else False
-                    )
-                    res["run"]["hayabusa"] = (
-                        True if "windows_hayabusa" in request.form else False
-                    )
+                res["run"]["kape"]["winlogbeat"] = (
+                    True if "windows_evtx_winlogbeat" in request.form else False
+                )
+                res["run"]["kape"]["hayabusa"] = (
+                    True if "windows_hayabusa" in request.form else False
+                )
                 res["run"]["kape"]["iis"] = (
                     True if "windows_iis" in request.form else False
                 )
@@ -505,11 +525,23 @@ def set_input_files():
                 res["run"]["kape"]["psreadline"] = (
                     True if "windows_psreadline" in request.form else False
                 )
-                res["run"]["kape"]["timeline"] = (
-                    True if "windows_timeline" in request.form else False
+                res["run"]["kape"]["plaso"] = (
+                    True if "windows_plaso" in request.form else False
                 )
                 res["run"]["kape"]["rdpcache"] = (
                     True if "windows_rdpcache" in request.form else False
+                )
+                res["run"]["kape"]["lnk"] = (
+                    True if "windows_lnk" in request.form else False
+                )
+                res["run"]["kape"]["jumplist"] = (
+                    True if "windows_jumplist" in request.form else False
+                )
+                res["run"]["kape"]["tasks"] = (
+                    True if "windows_tasks" in request.form else False
+                )
+                res["run"]["kape"]["webcache"] = (
+                    True if "windows_webcache" in request.form else False
                 )
             case "uac":
                 ##RUN UAC
@@ -517,8 +549,8 @@ def set_input_files():
                 res["run"]["uac"]["filebeat"] = (
                     True if "uac_filebeat" in request.form else False
                 )
-                res["run"]["uac"]["timeline"] = (
-                    True if "uac_timeline" in request.form else False
+                res["run"]["uac"]["plaso"] = (
+                    True if "uac_plaso" in request.form else False
                 )
             case "mail":
                 ##RUN MAIL PLUGIN
@@ -555,20 +587,13 @@ def set_input_files():
                 res["run"]["orc"]["plugin"] = True
                 res["run"]["orc"]["private_key_file"] = ""
                 res["run"]["orc"]["evtx"] = (
-                    True if "windows_evtx" in request.form else False
+                    True if "windows_evtx_python" in request.form else False
                 )
-                if not res["run"]["orc"]["evtx"]:
-                    res["run"]["orc"]["winlogbeat"] = False
-                    res["run"]["hayabusa"] = False
-                else:
-                    res["run"]["orc"]["winlogbeat"] = (
-                        True if "windows_evtx_winlogbeat" in request.form else False
-                    )
-                    res["run"]["hayabusa"] = (
-                        True if "windows_hayabusa" in request.form else False
-                    )
-                res["run"]["orc"]["iis"] = (
-                    True if "windows_iis" in request.form else False
+                res["run"]["orc"]["winlogbeat"] = (
+                    True if "windows_evtx_winlogbeat" in request.form else False
+                )
+                res["run"]["orc"]["hayabusa"] = (
+                    True if "windows_hayabusa" in request.form else False
                 )
                 res["run"]["orc"]["registry"] = (
                     True if "windows_registry" in request.form else False
@@ -579,15 +604,39 @@ def set_input_files():
                 res["run"]["orc"]["usnjrnl"] = (
                     True if "windows_usnjrnl" in request.form else False
                 )
-                res["run"]["orc"]["timeline"] = (
-                    True if "windows_timeline" in request.form else False
+                res["run"]["orc"]["plaso"] = (
+                    True if "windows_plaso" in request.form else False
                 )
                 res["run"]["orc"]["prefetch"] = (
                     True if "windows_prefetch" in request.form else False
                 )
-                res["run"]["orc"]["activitiescache"] = False
-                res["run"]["orc"]["recyclebin"] = False
-                res["run"]["orc"]["mplog"] = False
+                res["run"]["orc"]["mplog"] = (
+                    True if "windows_mplog" in request.form else False
+                )
+                res["run"]["orc"]["activitiescache"] = (
+                    True if "windows_activitiescache" in request.form else False
+                )
+                res["run"]["orc"]["recyclebin"] = (
+                    True if "windows_recyclebin" in request.form else False
+                )
+                res["run"]["orc"]["psreadline"] = (
+                    True if "windows_psreadline" in request.form else False
+                )
+                res["run"]["orc"]["rdpcache"] = (
+                    True if "windows_rdpcache" in request.form else False
+                )
+                res["run"]["orc"]["lnk"] = (
+                    True if "windows_lnk" in request.form else False
+                )
+                res["run"]["orc"]["jumplist"] = (
+                    True if "windows_jumplist" in request.form else False
+                )
+                res["run"]["orc"]["tasks"] = (
+                    True if "windows_tasks" in request.form else False
+                )
+                res["run"]["orc"]["webcache"] = (
+                    True if "windows_webcache" in request.form else False
+                )
                 try:
                     if "orc_keyfile" in request.files:
                         if request.files["orc_keyfile"]:
@@ -607,34 +656,85 @@ def set_input_files():
             case "adaudit":
                 ##RUN ADAUDIT
                 res["run"]["adaudit"]["plugin"] = True
-            case "generaptor":
-                ##RUN GENERAPTOR
+            case "generaptor_linux":
+                _selected_plugin = "generaptor"
+                del res["run"]["generaptor"]["evtx"]
+                del res["run"]["generaptor"]["winlogbeat"]
+                del res["run"]["generaptor"]["iis"]
+                del res["run"]["generaptor"]["plaso"]
+                del res["run"]["generaptor"]["registry"]
+                del res["run"]["generaptor"]["mft"]
+                del res["run"]["generaptor"]["usnjrnl"]
+                del res["run"]["generaptor"]["prefetch"]
+                del res["run"]["generaptor"]["mplog"]
+                del res["run"]["generaptor"]["activitiescache"]
+                del res["run"]["generaptor"]["recyclebin"]
+                del res["run"]["generaptor"]["psreadline"]
+                del res["run"]["generaptor"]["rdpcache"]
+                del res["run"]["generaptor"]["lnk"]
+                del res["run"]["generaptor"]["jumplist"]
+                del res["run"]["generaptor"]["tasks"]
+                del res["run"]["generaptor"]["webcache"]
                 res["run"]["generaptor"]["plugin"] = True
-                if not request.form.get("generaptor_private_key_secret", ""):
+                if not request.form.get("private_key_secret", ""):
                     raise Exception("No generaptor private key secret")
                 res["run"]["generaptor"]["private_key_file"] = ""
                 _AESprivkey = AESCipher(key=collecte_id)
                 _ciphered_key = _AESprivkey.encrypt(
-                    raw=request.form.get("generaptor_private_key_secret")
+                    raw=request.form.get("private_key_secret")
+                )
+                res["run"]["generaptor"]["private_key_secret"] = _ciphered_key.decode(
+                    "utf-8"
+                )
+                res["run"]["generaptor"]["linux_filebeat"] = (
+                    True if "linux_filebeat" in request.form else False
+                )
+                res["run"]["generaptor"]["linux_plaso"] = (
+                    True if "linux_plaso" in request.form else False
+                )
+                try:
+                    if "generaptor_private_key_file" in request.files:
+                        if request.files["generaptor_private_key_file"]:
+                            uploaded_file = request.files["generaptor_private_key_file"]
+                            filename = secure_filename(uploaded_file.filename)
+                            uploaded_file.save(os.path.join(ex_dir, filename))
+                            res["run"]["generaptor"]["private_key_file"] = filename
+                        else:
+                            raise Exception("No private key send")
+                except Exception as file_error:
+                    filename = "ERROR_filename"
+                    res["run"]["generaptor"]["private_key_file"] = filename
+                    l.error(
+                        f"[set_input_files] GENERAPTOR private key file upload error: {file_error}"
+                    )
+                    res["error"] = (
+                        f"[set_input_files] GENERAPTOR private key file upload error: {file_error}"
+                    )
+            case "generaptor_windows":
+                ##RUN GENERAPTOR
+                del res["run"]["generaptor"]["linux_filebeat"]
+                del res["run"]["generaptor"]["linux_plaso"]
+                _selected_plugin = "generaptor"
+                res["run"]["generaptor"]["plugin"] = True
+                if not request.form.get("private_key_secret", ""):
+                    raise Exception("No generaptor private key secret")
+                res["run"]["generaptor"]["private_key_file"] = ""
+                _AESprivkey = AESCipher(key=collecte_id)
+                _ciphered_key = _AESprivkey.encrypt(
+                    raw=request.form.get("private_key_secret")
                 )
                 res["run"]["generaptor"]["private_key_secret"] = _ciphered_key.decode(
                     "utf-8"
                 )
                 res["run"]["generaptor"]["evtx"] = (
-                    True if "windows_evtx" in request.form else False
+                    True if "windows_evtx_python" in request.form else False
                 )
-                if not res["run"]["generaptor"]["evtx"]:
-                    res["run"]["generaptor"]["winlogbeat"] = False
-                    res["run"]["hayabusa"] = False
-                else:
-                    res["run"]["generaptor"]["winlogbeat"] = (
-                        True if "windows_evtx_winlogbeat" in request.form else False
-                    )
-                    res["run"]["hayabusa"] = (
-                        True if "windows_hayabusa" in request.form else False
-                    )
-                if not res["run"]["generaptor"]["evtx"]:
-                    res["run"]["generaptor"]["winlogbeat"] = False
+                res["run"]["generaptor"]["winlogbeat"] = (
+                    True if "windows_evtx_winlogbeat" in request.form else False
+                )
+                res["run"]["generaptor"]["hayabusa"] = (
+                    True if "windows_hayabusa" in request.form else False
+                )
                 res["run"]["generaptor"]["iis"] = (
                     True if "windows_iis" in request.form else False
                 )
@@ -647,8 +747,8 @@ def set_input_files():
                 res["run"]["generaptor"]["usnjrnl"] = (
                     True if "windows_usnjrnl" in request.form else False
                 )
-                res["run"]["generaptor"]["timeline"] = (
-                    True if "windows_timeline" in request.form else False
+                res["run"]["generaptor"]["plaso"] = (
+                    True if "windows_plaso" in request.form else False
                 )
                 res["run"]["generaptor"]["prefetch"] = (
                     True if "windows_prefetch" in request.form else False
@@ -665,11 +765,20 @@ def set_input_files():
                 res["run"]["generaptor"]["psreadline"] = (
                     True if "windows_psreadline" in request.form else False
                 )
-                res["run"]["generaptor"]["linux"] = (
-                    True if "generaptor_linux" in request.form else False
-                )
                 res["run"]["generaptor"]["rdpcache"] = (
                     True if "windows_rdpcache" in request.form else False
+                )
+                res["run"]["generaptor"]["lnk"] = (
+                    True if "windows_lnk" in request.form else False
+                )
+                res["run"]["generaptor"]["jumplist"] = (
+                    True if "windows_jumplist" in request.form else False
+                )
+                res["run"]["generaptor"]["tasks"] = (
+                    True if "windows_tasks" in request.form else False
+                )
+                res["run"]["generaptor"]["webcache"] = (
+                    True if "windows_webcache" in request.form else False
                 )
                 try:
                     if "generaptor_private_key_file" in request.files:
@@ -706,9 +815,6 @@ def set_input_files():
                     if value is False
                 }
             )
-        if res["run"]["hayabusa"]:
-            res["workflow"]["hayabusa"] = {"status": "pending"}
-
         try:
             uploaded_file = request.files["archive"]
             filename = secure_filename(uploaded_file.filename)
@@ -728,38 +834,33 @@ def set_input_files():
 
         try:
             if (
-                res["run"]["kape"]["timeline"]
-                or res["run"]["uac"]["timeline"]
-                or res["run"]["generaptor"]["timeline"]
-            ) and INTERNAL_CONFIG["administration"]["Timesketch"]["active"]:
-                _sketch = triageutils.get_sketch_by_name(
-                    name=res["general"]["client"].lower(), logger=l
-                )
-                if not _sketch:
-                    res["general"]["timesketch_id"] = triageutils.create_sketch(
+                (res["run"][_config_generate_plugin].get("plaso", False) 
+                or res["run"][_config_generate_plugin].get("linux_plaso", False))
+                and res["general"]["timesketch_id"] == 0
+            ):
+                if INTERNAL_CONFIG["administration"]["Timesketch"]["active"]:
+                    _sketch = triageutils.get_sketch_by_name(
                         name=res["general"]["client"].lower(), logger=l
                     )
-                    l.info(
-                        f'[set_input_files] New sketch ID: {res["general"]["timesketch_id"]}'
-                    )
-                    if res["general"]["timesketch_id"] == 0:
-                        raise Exception("Error in sketch creation")
+                    if not _sketch:
+                        res["general"]["timesketch_id"] = triageutils.create_sketch(
+                            name=res["general"]["client"].lower(), logger=l
+                        )
+                        l.info(
+                            f'[set_input_files] New sketch ID: {res["general"]["timesketch_id"]}'
+                        )
+                        if res["general"]["timesketch_id"] == 0:
+                            raise Exception("Error in sketch creation")
+                    else:
+                        res["general"]["timesketch_id"] = _sketch.id
+                        l.info(
+                            f'[set_input_files] Sketch ID: {res["general"]["timesketch_id"]}'
+                        )
                 else:
-                    res["general"]["timesketch_id"] = _sketch.id
-                    l.info(
-                        f'[set_input_files] Sketch ID: {res["general"]["timesketch_id"]}'
-                    )
-            else:
-                res["general"]["timesketch_id"] = 0
-                l.info(
-                    "[set_input_files] Plugin timeline selected but TS not activated"
-                )
+                    raise Exception("Timesketch module not active")
         except Exception as ex:
-            res["general"]["timesketch_id"] = 0
-            res["run"]["kape"]["timeline"] = False
-            res["run"]["uac"]["timeline"] = False
-            res["run"]["generaptor"]["timeline"] = False
             l.error(f"[set_input_files] create sketch error: {ex}")
+            res["general"]["timesketch_id"] = 0
 
         with open(os.path.join(ex_dir, "config.yaml"), "w") as config_file:
             yaml.dump(res, config_file, sort_keys=False)
@@ -769,8 +870,7 @@ def set_input_files():
     except Exception as err:
         if l:
             l.error(f"[set_input_files] {str(err)}")
-        if not res:
-            res = dict()
+        res = dict()
         res["error"] = f"[set_input_files] {str(err)}"
 
     return jsonify(res)
@@ -779,92 +879,100 @@ def set_input_files():
 @app.route("/replay", methods=["POST"])
 @login_required
 def replay_collecte():
+    l = None
     try:
         if not request.json:
             return jsonify(error=f"[replay_collecte] No data posted")
-        res = generate_config()
-        res.update(request.json, sort_keys=False)
-        _exec_hayabusa = res["run"]["hayabusa"]
-        del res["run"]["hayabusa"]
-        res["run"]["hayabusa"] = _exec_hayabusa
-        if (
-            not res.setdefault("uuid", None)
-            or not res.setdefault("path", None)
-            or not res.setdefault("log_file", None)
-        ):
-            return jsonify(error=f"[replay_collecte] Bad data posted -- No UUID")
-        l = get_logger(name=res["uuid"])
-        res["error"] = ""
-        try:
-            if (
-                (
-                    res["run"]["kape"]["timeline"]
-                    or res["run"]["uac"]["timeline"]
-                    or res["run"]["generaptor"]["timeline"]
-                    or res["run"]["orc"]["timeline"]
-                )
-                and res["general"]["timesketch_id"] == 0
-                and INTERNAL_CONFIG["administration"]["Timesketch"]["active"]
-            ):
-                _sketch = triageutils.get_sketch_by_name(
-                    name=res["general"]["client"].lower(), logger=l
-                )
-                if not _sketch:
-                    res["general"]["timesketch_id"] = triageutils.create_sketch(
-                        name=res["general"]["client"].lower(), logger=l
-                    )
-                    l.info(
-                        f'[replay_collecte] New sketch ID: {res["general"]["timesketch_id"]}'
-                    )
-                    if res["general"]["timesketch_id"] == 0:
-                        raise Exception("Error in sketch creation")
-                else:
-                    res["general"]["timesketch_id"] = _sketch.id
-                    l.info(
-                        f'[replay_collecte] Sketch ID: {res["general"]["timesketch_id"]}'
-                    )
-        except Exception as ex:
-            res["general"]["timesketch_id"] = 0
-            res["run"]["kape"]["timeline"] = False
-            res["run"]["uac"]["timeline"] = False
-            res["run"]["orc"]["timeline"] = False
-            res["run"]["generaptor"]["timeline"] = False
-            l.error(f"[replay_collecte] create sketch error: {ex}")
-            res["error"] = f"[replay_collecte] {ex}"
-
-        l.info("========================= START REPLAY =========================")
-        res["general"]["replay"] += 1
-        l.info(f"Number Replay: {res['general']['replay']}")
-
-        # Update workflow
-        for plugin in list(res["run"].keys()):
-            if plugin in ["hayabusa", "adtimeline", "o365"]:
-                if res["run"][plugin]:
-                    res["workflow"][plugin] = {"status": "pending"}
-            elif res["run"][plugin]["plugin"]:
-                res["workflow"][plugin] = {
-                    key: {"status": "pending"}
-                    for key, value in res["run"][plugin].items()
-                    if value is True
-                }
-                res["workflow"][plugin].update(
-                    {
-                        key: {"status": "off"}
-                        for key, value in res["run"][plugin].items()
-                        if value is False
-                    }
-                )
-        with open(os.path.join(res["path"], "config.yaml"), "w") as config_file:
-            yaml.dump(res, config_file, sort_keys=False)
-            l.info(
-                f"[replay_collecte] config file updated: {os.path.join(res['path'], 'config.yaml')}"
-            )
-
-        return jsonify(res)
+        _replay_plugin = [item for item in list(request.json.get('run', {})) if item != "hayabusa"]
+        _template_config = generate_config(plugin=_replay_plugin[0])
+        res = triageutils.update_dict(
+            dict_to_update=_template_config, new_values=request.json
+        )
+        if not res.get("uuid", False):
+            raise Exception("Error in update_dict")
+        # res.update(request.json, sort_keys=False)
+        if _replay_collecte(config=res):
+            return jsonify(res)
+        else:
+            raise Exception("error in replay function")
     except Exception as err:
         if l:
             l.error(f"[replay_collecte] {str(err)}")
         return jsonify(error=str(err))
+
+
+def _replay_collecte(config: dict) -> bool:
+    l = get_logger(name=config["uuid"])
+    try:
+        l.info("========================= START REPLAY =========================")
+        config["general"]["triagetime"] = str(
+            datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        )
+        config["error"] = ""
+        _replay_plugin = [item for item in list(config.get('run', {})) if item != "hayabusa"][0]
+        try:
+            if (
+                (config["run"][_replay_plugin].get("plaso", False) 
+                or config["run"][_replay_plugin].get("linux_plaso", False))
+                and config["general"]["timesketch_id"] == 0
+            ):
+                if INTERNAL_CONFIG["administration"]["Timesketch"]["active"]:
+                    _sketch = triageutils.get_sketch_by_name(
+                        name=config["general"]["client"].lower(), logger=l
+                    )
+                    if not _sketch:
+                        config["general"]["timesketch_id"] = triageutils.create_sketch(
+                            name=config["general"]["client"].lower(), logger=l
+                        )
+                        l.info(
+                            f'[replay_collecte] New sketch ID: {config["general"]["timesketch_id"]}'
+                        )
+                        if config["general"]["timesketch_id"] == 0:
+                            raise Exception("Error in sketch creation")
+                    else:
+                        config["general"]["timesketch_id"] = _sketch.id
+                        l.info(
+                            f'[replay_collecte] Sketch ID: {config["general"]["timesketch_id"]}'
+                        )
+                else:
+                    raise Exception("Timesketch module not active")
+        except Exception as ex:
+            l.error(f"[replay_collecte] create sketch error: {ex}")
+            config["general"]["timesketch_id"] = 0
+        config["general"]["replay"] += 1
+        l.info(f"Number Replay: {config['general']['replay']}")
+        triageutils.delete_directory(
+            src=Path(f'{config["general"]["extract"]}/{config["general"]["hostname"]}'),
+            logger=None,
+        )
+        # Update workflow
+        for plugin in list(config["run"].keys()):
+            if plugin in ["adtimeline", "o365"]:
+                if config["run"][plugin]:
+                    config["workflow"][plugin] = {"status": "pending"}
+            elif config["run"][plugin]["plugin"]:
+                config["workflow"][plugin] = {
+                    key: {"status": "pending"}
+                    for key, value in config["run"][plugin].items()
+                    if value is True
+                }
+                config["workflow"][plugin].update(
+                    {
+                        key: {"status": "off"}
+                        for key, value in config["run"][plugin].items()
+                        if value is False
+                    }
+                )
+        with open(os.path.join(config["path"], "config.yaml"), "w") as config_file:
+            yaml.dump(config, config_file, sort_keys=False)
+            l.info(
+                f"[replay_collecte] config file updated: {os.path.join(config['path'], 'config.yaml')}"
+            )
+        return True
+    except Exception as err:
+        if l:
+            l.error(f"[_replay_collecte] {err}")
+        return False
 
 
 @app.route("/standalone_input_file", methods=["POST"])
@@ -876,19 +984,13 @@ def standalone_input_file():
         l = get_logger(name=collecte_id)
         triageutils.set_logger(l)
         triageutils.create_directory_path(path=ex_dir, logger=l)
-        res = generate_config()
+        res = generate_config(plugin="standalone")
         res["uuid"] = collecte_id
         res["general"]["extract"] = ex_dir
-        res["general"]["client"] = slugify(request.form.get("client", ""))
-        res["general"]["hostname"] = slugify(request.form.get("hostname", ""))
-        res["general"]["timesketch_id"] = 0
-        res["general"]["replay"] = 0
-        res["general"][
-            "auto_close_collecte"
-        ] = True  # True if request.form.get("auto_close_collecte") else False
-
+        res["general"]["client"] = slugify(request.form.get("client", "")).lower()
+        res["general"]["hostname"] = slugify(request.form.get("hostname", "")).lower()
+        res["general"]["triagetime"] = str(datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
         res["path"] = ex_dir
-
         res["log_file"] = f"{collecte_id}.log"
 
         if request.form.get("run_plugin", False):
@@ -927,7 +1029,7 @@ def standalone_input_file():
         except Exception as file_error:
             filename = "ERROR_filename"
             file_sha256 = "ERROR_SHA"
-            l.error(f"[set_input_files] Archive upload error: {file_error}")
+            l.error(f"[standalone_input_file] Archive upload error: {file_error}")
             return jsonify(error="Upload file error")
 
         res["archive"]["name"] = filename
@@ -953,7 +1055,7 @@ def standalone_input_file():
 def get_log():
     tail = []
     log_file = request.args.get("id", "")  # id de collecte
-    if len(log_file.split("-")) != 5:
+    if not is_valid_uuid(val=log_file):
         return jsonify(error="Bad id given")
     try:
         l = logging.getLogger(f"pytriage_{log_file}")
@@ -981,7 +1083,6 @@ def get_all_log_files():
             src=LOG_FOLDER, onlyfiles=True, LOGLEVEL="NOLOG"
         )
         return jsonify(log_files=log_files)
-
     except Exception as err:
         return jsonify(error=str(err))
 
@@ -991,12 +1092,17 @@ def get_all_log_files():
 def download_log_file():
     try:
         log_file_name = request.args.get("id", "")
+        if log_file_name.endswith(".log"):
+            _id = log_file_name.split(".log")[0]
+            if not is_valid_uuid(val=_id) and _id.lower() != "admin":
+                return jsonify(error="Bad id given")
+        else:
+            return jsonify(error="Bad id given")
         log_file = os.path.join(LOG_FOLDER, log_file_name)
         if triageutils.file_exists(file=log_file, LOGLEVEL="NOLOG"):
             return send_file(path_or_file=log_file, as_attachment=True)
         return jsonify(error="No log file found")
     except Exception as err:
-        print(err)
         return jsonify(error=str(err))
 
 
@@ -1007,20 +1113,21 @@ def _get_all_opened_collectes():
             src=UPLOAD_FOLDER, onlydirs=True, LOGLEVEL="NOLOG"
         )
         for folder in sub_folders:
-            if len(folder.split("-")) == 5:
-                _files = triageutils.list_directory(
-                    src=os.path.join(UPLOAD_FOLDER, folder),
-                    onlyfiles=True,
-                    LOGLEVEL="NOLOG",
-                )
-                conf_file = None
-                for _f in _files:
-                    if _f == "config.yaml":
-                        conf_file = os.path.join(UPLOAD_FOLDER, folder, _f)
-                        break
-                if conf_file:
-                    temp_conf = triageutils.read_config(conf_file)
-                    res[folder] = temp_conf["general"]["hostname"]
+            if not is_valid_uuid(val=folder):
+                continue
+            _files = triageutils.list_directory(
+                src=os.path.join(UPLOAD_FOLDER, folder),
+                onlyfiles=True,
+                LOGLEVEL="NOLOG",
+            )
+            conf_file = None
+            for _f in _files:
+                if _f == "config.yaml":
+                    conf_file = os.path.join(UPLOAD_FOLDER, folder, _f)
+                    break
+            if conf_file:
+                temp_conf = triageutils.read_config(conf_file)
+                res[folder] = temp_conf["general"]["hostname"]
         return res
     except Exception as err:
         res = dict()
@@ -1048,21 +1155,22 @@ def get_all_clients():
         )
         res["clients"] = []
         for folder in sub_folders:
-            if len(folder.split("-")) == 5:
-                _files = triageutils.list_directory(
-                    src=os.path.join(UPLOAD_FOLDER, folder),
-                    onlyfiles=True,
-                    LOGLEVEL="NOLOG",
-                )
-                conf_file = None
-                for _f in _files:
-                    if _f == "config.yaml":
-                        conf_file = os.path.join(UPLOAD_FOLDER, folder, _f)
-                        break
-                if conf_file:
-                    temp_conf = triageutils.read_config(conf_file)
-                    if temp_conf["general"]["client"] not in res["clients"]:
-                        res["clients"].append(temp_conf["general"]["client"])
+            if not is_valid_uuid(val=folder):
+                continue
+            _files = triageutils.list_directory(
+                src=os.path.join(UPLOAD_FOLDER, folder),
+                onlyfiles=True,
+                LOGLEVEL="NOLOG",
+            )
+            conf_file = None
+            for _f in _files:
+                if _f == "config.yaml":
+                    conf_file = os.path.join(UPLOAD_FOLDER, folder, _f)
+                    break
+            if conf_file:
+                temp_conf = triageutils.read_config(conf_file)
+                if temp_conf["general"]["client"] not in res["clients"]:
+                    res["clients"].append(temp_conf["general"]["client"])
         return res
     except Exception as err:
         res = dict()
@@ -1079,28 +1187,29 @@ def get_all_clients_collectes():
             src=UPLOAD_FOLDER, onlydirs=True, LOGLEVEL="NOLOG"
         )
         for folder in sub_folders:
-            if len(folder.split("-")) == 5:
-                _files = triageutils.list_directory(
-                    src=os.path.join(UPLOAD_FOLDER, folder),
-                    onlyfiles=True,
-                    LOGLEVEL="NOLOG",
-                )
-                conf_file = None
-                for _f in _files:
-                    if _f == "config.yaml":
-                        conf_file = os.path.join(UPLOAD_FOLDER, folder, _f)
-                        break
-                if conf_file:
-                    temp_conf = triageutils.read_config(conf_file)
-                    if res.setdefault(temp_conf["general"]["client"], ""):
-                        res[temp_conf["general"]["client"]][temp_conf["uuid"]] = (
-                            temp_conf["general"]["hostname"]
-                        )
-                    else:
-                        res[temp_conf["general"]["client"]] = dict()
-                        res[temp_conf["general"]["client"]][temp_conf["uuid"]] = (
-                            temp_conf["general"]["hostname"]
-                        )
+            if not is_valid_uuid(val=folder):
+                continue
+            _files = triageutils.list_directory(
+                src=os.path.join(UPLOAD_FOLDER, folder),
+                onlyfiles=True,
+                LOGLEVEL="NOLOG",
+            )
+            conf_file = None
+            for _f in _files:
+                if _f == "config.yaml":
+                    conf_file = os.path.join(UPLOAD_FOLDER, folder, _f)
+                    break
+            if conf_file:
+                temp_conf = triageutils.read_config(conf_file)
+                if res.get(temp_conf["general"]["client"], None):
+                    res[temp_conf["general"]["client"]][temp_conf["uuid"]] = temp_conf[
+                        "general"
+                    ]["hostname"]
+                else:
+                    res[temp_conf["general"]["client"]] = dict()
+                    res[temp_conf["general"]["client"]][temp_conf["uuid"]] = temp_conf[
+                        "general"
+                    ]["hostname"]
         return jsonify(res)
     except Exception as err:
         res = dict()
@@ -1113,6 +1222,8 @@ def get_all_clients_collectes():
 def get_collecte_by_id():
     try:
         collecte_id = request.args.get("id", "")
+        if not is_valid_uuid(val=collecte_id):
+            return jsonify(error="Bad id given")
         res = dict()
         res = _get_collecte_by_id(uuid=collecte_id)
         if "uuid" not in res:
@@ -1145,12 +1256,15 @@ def _get_collecte_by_id(uuid: str = "") -> dict:
                         conf_file = os.path.join(UPLOAD_FOLDER, folder, _f)
                         break
                 if conf_file:
-                    res = triageutils.read_config(conf_file)
+                    _actual_config = triageutils.read_config(conf_file)
+                    _plugin = [item for item in list(_actual_config.get('run', {})) if item != "hayabusa"]
+                    res = generate_config(plugin=_plugin[0])
+                    res.update(_actual_config)
                     break
         check_config(conf=res)
         return res
     except Exception as err:
-        res = generate_config()
+        res = generate_config(plugin="none")
         res["error"] = str(err)
         return res
 
@@ -1253,9 +1367,7 @@ def start_triage(config: dict = {}):
                         finally:
                             l.info("[start_triage] Execute next plugin")
                 l.info("[start_triage] End plugins")
-                if config["general"]["auto_close_collecte"]:
-                    l.info("[start_triage] Closing collecte")
-                    _close_collecte_by_id(uuid=config["uuid"])
+                _close_collecte_by_id(uuid=config["uuid"])
                 for k, v in errors_dict.items():
                     l.error(f"[{k}] : {v}")
                 l.info("[start_triage] END")
@@ -1265,7 +1377,7 @@ def start_triage(config: dict = {}):
                 config = dict()
                 l.info("========================= END task =========================")
         else:
-            raise Exception("Archive or Config or Path is None")
+            raise Exception("Config is None")
     except Exception as ex:
         ADMIN_LOGGER.error(f"[start_triage ERROR]: {ex}")
 
@@ -1274,8 +1386,11 @@ def start_triage(config: dict = {}):
 @login_required
 def open_collecte_by_id(collecte_id: str = ""):
     try:
+        l = None
         if request.method == "GET":
             collecte_id = request.args.get("id", "")
+        if not is_valid_uuid(val=collecte_id):
+            return jsonify(error="Bad id given")
         res = dict()
         l = get_logger(name=collecte_id)
 
@@ -1292,7 +1407,8 @@ def open_collecte_by_id(collecte_id: str = ""):
         res["error"] = str(err)
         return jsonify(res)
     finally:
-        l.info("========================= END task =========================")
+        if l:
+            l.info("========================= END task =========================")
 
 
 @app.route("/download", methods=["GET"])
@@ -1300,6 +1416,8 @@ def open_collecte_by_id(collecte_id: str = ""):
 def download_collecte_by_id():
     try:
         collecte_id = request.args.get("id", "")
+        if not is_valid_uuid(val=collecte_id):
+            return jsonify(error="Bad id given")
         res = dict()
         res = _get_collecte_by_id(uuid=collecte_id)
         if not res.setdefault("uuid", ""):
@@ -1389,19 +1507,17 @@ def _get_running_collectes():
 def get_collecte_status():
     try:
         task_id = request.args.get("task_id", "")
-        task_result = AsyncResult(task_id)
-        return jsonify(
-            {
-                "task_id": task_id,
-                "task_status": task_result.status,
-                "task_state": task_result.state,
-                "task_result": task_result.result,
-            }
-        )
+        _res = _get_collecte_status(task_id=task_id)
+        return jsonify(_res)
     except Exception as err:
-        res = dict()
-        res["error"] = str(err)
-        return jsonify(res)
+        _res = {
+            "task_id": "",
+            "task_status": "FAILURE",
+            "task_state": "",
+            "task_result": "",
+            "error": str(err),
+        }
+        return jsonify(_res)
 
 
 def _get_collecte_status(task_id: str):
@@ -1410,9 +1526,9 @@ def _get_collecte_status(task_id: str):
         return dict(
             {
                 "task_id": task_id,
-                "task_status": task_result.status,
-                "task_state": task_result.state,
-                "task_result": task_result.result,
+                "task_status": str(task_result.status),
+                "task_state": str(task_result.state),
+                "task_result": str(task_result.result),
                 "error": "",
             }
         )
@@ -1420,7 +1536,7 @@ def _get_collecte_status(task_id: str):
         return dict(
             {
                 "task_id": task_id,
-                "task_status": "",
+                "task_status": "FAILURE",
                 "task_state": "",
                 "task_result": "",
                 "error": str(err),
@@ -1446,6 +1562,21 @@ def process(collecte_id: str = ""):
         return jsonify(error=f"[process] {str(ex)}")
 
 
+@app.route("/stoptask", methods=["POST"])
+@login_required
+def stop_task(taskid: str = ""):
+    try:
+        if request.method == "POST" and request.json:
+            taskid = request.json.get("taskid", "")
+        if is_valid_uuid(taskid):
+            celery.control.revoke(taskid, terminate=True)
+            return jsonify(status=True, error="Task Cancelled")
+        else:
+            raise Exception("Not a valid taskID")
+    except Exception as ex:
+        return jsonify(status=False, error=f"[stop_task] {str(ex)}")
+
+
 @app.route("/admincollectes", methods=["GET"])
 @login_required
 @admin_required
@@ -1455,6 +1586,26 @@ def admin_get_collectes():
         return jsonify(cols)
     except Exception as ex:
         return jsonify(error=f"[get_admin_collectes] {str(ex)}")
+
+
+@app.route("/adminreplaycollecte", methods=["POST"])
+@login_required
+@admin_required
+def admin_replay_collecte():
+    try:
+        uuid = ""
+        ADMIN_LOGGER.info(f"REQ: {request.json}")
+        if request.method == "POST" and request.json:
+            uuid = request.json.get("uuid", "")
+        if not is_valid_uuid(val=uuid):
+            return jsonify(error="Bad uuid given")
+        config = _get_collecte_by_id(uuid=uuid)
+        if _replay_collecte(config=config):
+            return jsonify(config)
+        else:
+            raise Exception("error in replay function")
+    except Exception as ex:
+        return jsonify(error=f"[admin_replay_collecte] {str(ex)}")
 
 
 @app.route("/admindeletecollecte", methods=["POST"])
@@ -1500,33 +1651,42 @@ def _get_admin_collectes():
             src=UPLOAD_FOLDER, onlydirs=True, LOGLEVEL="NOLOG"
         )
         for folder in sub_folders:
-            if len(folder.split("-")) == 5:
-                _files = triageutils.list_directory(
-                    src=os.path.join(UPLOAD_FOLDER, folder),
-                    onlyfiles=True,
-                    LOGLEVEL="NOLOG",
+            if not is_valid_uuid(val=folder):
+                continue
+            _files = triageutils.list_directory(
+                src=os.path.join(UPLOAD_FOLDER, folder),
+                onlyfiles=True,
+                LOGLEVEL="NOLOG",
+            )
+            conf_file = None
+            for _f in _files:
+                if _f == "config.yaml":
+                    conf_file = os.path.join(UPLOAD_FOLDER, folder, _f)
+                    break
+            if conf_file:
+                _actual_config = triageutils.read_config(conf_file)
+                _plugin = [item for item in list(_actual_config.get('run', {})) if item != "hayabusa"]
+                temp_conf = triageutils.update_dict(
+                    dict_to_update=generate_config(plugin=_plugin[0]),
+                    new_values=_actual_config,
                 )
-                conf_file = None
-                for _f in _files:
-                    if _f == "config.yaml":
-                        conf_file = os.path.join(UPLOAD_FOLDER, folder, _f)
-                        break
-                if conf_file:
-                    temp_conf = triageutils.read_config(conf_file)
-                    uuid = temp_conf["uuid"]
-                    hostname = temp_conf["general"]["hostname"]
-                    client = temp_conf["general"]["client"]
-                    _mtime = os.path.getmtime(conf_file)
-                    mtime = datetime.fromtimestamp(_mtime).strftime("%d/%m/%Y %H:%M:%S")
-                    _state = _get_collecte_status(temp_conf["task_id"])
-                    res[uuid] = {
-                        "client": client,
-                        "hostname": hostname,
-                        "uuid": uuid,
-                        "state": _state.setdefault("task_status", ""),
-                        "mtime": mtime,
-                    }
-
+                if not temp_conf.get("uuid", False):
+                    raise Exception("Error in update_dict")
+                uuid = temp_conf["uuid"]
+                hostname = temp_conf["general"].get("hostname", "Empty")
+                client = temp_conf["general"].get("client", "Empty")
+                mtime = temp_conf["general"].get(
+                    "triagetime", str(datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+                )
+                _state = _get_collecte_status(temp_conf["task_id"])
+                res[uuid] = {
+                    "client": client,
+                    "hostname": hostname,
+                    "uuid": uuid,
+                    "state": _state.get("task_status", "ERROR"),
+                    "mtime": mtime,
+                    "taskid": temp_conf["task_id"],
+                }
         return res
     except Exception as err:
         res = dict()
@@ -1664,8 +1824,8 @@ def admin_upload_hayabusa():
 def admin_get_logstash_connections():
     try:
         _conns = list()
-        if INTERNAL_CONFIG["administration"]["Elastic"]["active"]:
-            _logstash_ip = INTERNAL_CONFIG["administration"]["Elastic"]["url"]
+        if INTERNAL_CONFIG["administration"]["Logstash"]["active"]:
+            _logstash_ip = INTERNAL_CONFIG["administration"]["Logstash"]["url"]
             _logstash_ports = [(k, v) for k, v in INTERNAL_CONFIG["pipelines"].items()]
             for _service, _port in _logstash_ports:
                 _temp = dict()
@@ -1773,7 +1933,7 @@ def check_internal_config(conf: dict = {}) -> None:
     try:
         for k, v in recursive_items(conf):
             if k and v == "":
-                print(f"[check_internal_config] Missing value for {k} in config file")
+                pass
                 # raise Exception(
                 #     f"[check_internal_config] Missing value for {k} in config file"
                 # )

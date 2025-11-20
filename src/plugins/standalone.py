@@ -2,11 +2,11 @@ import os
 import json
 import re
 import yaml
-import docker
 from pathlib import Path
 from logging import Logger
 from src.thirdparty import triageutils as triageutils
 from src.thirdparty.ParseEVTX import ParseEVTX
+from src.thirdparty.wrapper_docker import WrapperDocker
 from src import BasePlugin, Status
 
 
@@ -19,6 +19,7 @@ class Plugin(BasePlugin):
 
     def __init__(self, conf: dict):
         super().__init__(config=conf)
+        self._docker = WrapperDocker(logger=self.logger)
         self.standalone_input_file = os.path.join(
             self.upload_dir, conf["archive"]["name"]
         )
@@ -143,99 +144,24 @@ class Plugin(BasePlugin):
             raise ex
 
     @triageutils.LOG
-    def standalone_winlogbeat(self, evtx_logs: list, logger: Logger):
+    def standalone_winlogbeat(self, evtx_folder: Path, logger: Logger):
         """Copie les evtx vers le dossier partagé sur la VM Winlogbeat.
         Args:
-            evtx_logs (list): Liste contenant les chemins des fichiers de log
+            evtx_folder (Path)
         Returns:
             result (bool): True or False
         """
-        result = True
-        if not len(evtx_logs):
-            self.error(f"[standalone_winlogbeat] No EVTX logs to send")
-            return False
         try:
             win_log_path = os.path.join(self.winlogbeat, self.clientname, self.hostname)
-            if triageutils.create_directory_path(path=win_log_path, logger=self.logger):
-                self.info(f"[standalone_winlogbeat] WinLogBeat created: {win_log_path}")
-                result &= triageutils.copy_files(
-                    src=evtx_logs, dst=win_log_path, overwrite=True, logger=self.logger
+            triageutils.create_directory_path(path=win_log_path, logger=self.logger)
+            for _f in evtx_folder.rglob("*.evtx"):
+                triageutils.copy_file(
+                    src=_f, dst=win_log_path, overwrite=True, logger=self.logger
                 )
+            return True
         except Exception as ex:
-            self.error(f"[standalone_winlogbeat] {ex}")
-        self.info(f"[standalone_winlogbeat] result: {result}")
-        return result
-
-    @triageutils.LOG
-    def standalone_fortinet_log_old(self, logs: list, logger: Logger):
-        """Fonction qui envoie les résultats de parsing de logs fortinet vers ELK"""
-        try:
-            total = len(logs)
-            count = 0
-            for log_file in logs:
-                _data_to_send = []
-                try:
-                    self.info(f"[standalone_fortinet_log] Parsing File: {log_file}")
-                    with open(log_file) as f:
-                        count += 1
-                        lines = f.readlines()
-                        for line in lines:
-                            keys = re.findall("(\w+)=", line)
-                            _v = re.findall('=(?:"([^"]*)"|(\S+))', line)
-                            vals = ["".join(x) for x in _v]
-                            try:
-                                _data = {
-                                    keys[i]: vals[i].replace('"', "").strip()
-                                    for i in range(len(keys))
-                                }
-                            except Exception as _error:
-                                _data = dict()
-                                self.error(
-                                    f"[standalone_fortinet_log] _data error : {_error}"
-                                )
-                            for _k in [
-                                "transport",
-                                "duration",
-                                "sentbyte",
-                                "rcvdbyte",
-                                "sentpkt",
-                                "rcvdpkt",
-                                "sentdelta",
-                                "rcvddelta",
-                                "proto",
-                            ]:
-                                if _k in keys:
-                                    try:
-                                        _data[_k] = int(_data[_k])
-                                    except Exception as _error:
-                                        _data[_k] = 0
-                                        self.error(
-                                            f"[standalone_fortinet_log] int error : {_error}"
-                                        )
-                            _data_to_send.append(_data)
-                        self.info(
-                            f"[standalone_fortinet_log] send file {count}/{total}"
-                        )
-                except Exception as _error:
-                    self.error(f"[standalone_fortinet_log] : {_error}")
-                ip = self.logstash_url
-                if ip.startswith("http"):
-                    ip = self.logstash_url.split("//")[1]
-                extrafields = dict()
-                extrafields["csirt"] = dict()
-                extrafields["csirt"]["client"] = self.clientname.lower()
-                extrafields["csirt"]["application"] = "fortinet"
-                extrafields["csirt"]["hostname"] = self.hostname.lower()
-                triageutils.send_data_to_elk(
-                    data=_data_to_send,
-                    ip=ip,
-                    port=self.raw_json_port,
-                    logger=self.logger,
-                    extrafields=extrafields,
-                )
-        except Exception as e:
-            self.error(f"[standalone_fortinet_log] {str(e)}")
-            raise e
+            self.error(f"[generaptor_evtx_winlogbeat] {ex}")
+            return False
 
     @triageutils.LOG
     def standalone_fortinet_filebeat(self, log_folder: str | Path, logger: Logger):
@@ -252,29 +178,20 @@ class Plugin(BasePlugin):
                 logger=self.logger,
             )
             new_config = Path(self.standalone_dir) / Path("filebeat.docker.yml")
-            with open(new_config, "w") as file:
+            with open(new_config.as_posix(), "w") as file:
                 yaml.dump(_config, file, sort_keys=False)
             voldisk = [
                 f"{log_folder}:/fortinet",
                 f"{new_config}:/usr/share/filebeat/filebeat.yml:ro",
             ]
-            self.info(f"VolDirs: {voldisk}")
-            self.info("Start DOCKER FileBeat")
-            _docker = docker.from_env()
             cmd = ["filebeat", "-e", "--once", "--strict.perms=false"]
-            container = _docker.containers.run(
-                image=f'{self.docker_images["filebeat"]["image"]}:{self.docker_images["filebeat"]["tag"]}',
-                auto_remove=True,
-                detach=True,
-                command=cmd,
-                volumes=voldisk,
-                network_mode="host",
-                stderr=True,
-                stdout=True,
-                name=f"{self.clientname}-{self.hostname}-FILEBEAT-FORTINET",
-            )
-            container.wait()
-            self.info("END DOCKER FileBeat")
+            self._docker.image = f'{self.docker_images["filebeat"]["image"]}:{self.docker_images["filebeat"]["tag"]}'
+            if not self._docker.is_image_present(name=self._docker.image):
+                raise Exception("Image not present")
+            self._docker.container = f"{self.uuid}-fortinet"
+            self._docker.volumes = voldisk
+            self._docker.execute_cmd(cmd=cmd)
+
         except Exception as e:
             self.error(f"[standalone_fortinet_log] {str(e)}")
             raise e
@@ -405,7 +322,7 @@ class Plugin(BasePlugin):
                     self.update_workflow_status(
                         plugin="standalone", module="winlogbeat", status=Status.STARTED
                     )
-                    zip_destination = os.path.join(self.standalone_dir, "extract")
+                    zip_destination = Path(os.path.join(self.standalone_dir, "extract"))
                     triageutils.create_directory_path(
                         path=zip_destination, logger=self.logger
                     )
@@ -414,10 +331,11 @@ class Plugin(BasePlugin):
                         dest=zip_destination,
                         logger=self.logger,
                     )
-                    evtx_logs = self.standalone_get_evtx(
+                    self.config["general"]["extracted_zip"] = f"{zip_destination}"
+                    self.update_config_file(data=self.config)
+                    self.standalone_winlogbeat(
                         evtx_folder=zip_destination, logger=self.logger
                     )
-                    self.standalone_winlogbeat(evtx_logs=evtx_logs, logger=self.logger)
                     self.update_workflow_status(
                         plugin="standalone", module="winlogbeat", status=Status.FINISHED
                     )
@@ -431,7 +349,7 @@ class Plugin(BasePlugin):
                     self.update_workflow_status(
                         plugin="standalone", module="evtx", status=Status.STARTED
                     )
-                    zip_destination = os.path.join(self.standalone_dir, "extract")
+                    zip_destination = Path(os.path.join(self.standalone_dir, "extract"))
                     triageutils.create_directory_path(
                         path=zip_destination, logger=self.logger
                     )
@@ -444,12 +362,12 @@ class Plugin(BasePlugin):
                         dest=zip_destination,
                         logger=self.logger,
                     )
+                    self.config["general"]["extracted_zip"] = f"{zip_destination}"
+                    self.update_config_file(data=self.config)
                     _ip = self.logstash_url
                     if _ip.startswith("http"):
                         _ip = self.logstash_url.split("//")[1]
-                    for _f in triageutils.search_files_by_extension_generator(
-                        src=zip_destination, extension=".evtx", logger=self.logger
-                    ):
+                    for _f in zip_destination.rglob("*.evtx"):
                         _p = ParseEVTX(
                             evtxfilepath=_f,
                             ip=_ip,
@@ -461,9 +379,9 @@ class Plugin(BasePlugin):
                             logstash_is_active=self.is_logstash_active,
                             logger=self.logger,
                         )
+                        self.info(f"[Standalone] Parse: {_f}")
                         _res = _p.parse_evtx()
-                        self.info(f"[Standalone] {_res}")
-
+                        self.info(f"[Standalone] Results: {_res}")
                         # send analytics info
                         if self.is_logstash_active:
                             _file_infos = triageutils.get_file_informations(filepath=_f)
@@ -519,6 +437,8 @@ class Plugin(BasePlugin):
                         dest=zip_destination,
                         logger=self.logger,
                     )
+                    self.config["general"]["extracted_zip"] = f"{zip_destination}"
+                    self.update_config_file(data=self.config)
                     self.standalone_fortinet_filebeat(
                         log_folder=zip_destination, logger=self.logger
                     )
@@ -547,6 +467,8 @@ class Plugin(BasePlugin):
                         dest=zip_destination,
                         logger=self.logger,
                     )
+                    self.config["general"]["extracted_zip"] = f"{zip_destination}"
+                    self.update_config_file(data=self.config)
                     forcepoint_logs = self.standalone_get_log_files(
                         log_folder=zip_destination, logger=self.logger
                     )
@@ -564,3 +486,6 @@ class Plugin(BasePlugin):
         except Exception as ex:
             self.error(f"[Standalone] run {str(ex)}")
             raise ex
+        finally:
+            self._docker.kill_containers_by_name(name=self.uuid)
+            self.info("[Standalone] End processing")

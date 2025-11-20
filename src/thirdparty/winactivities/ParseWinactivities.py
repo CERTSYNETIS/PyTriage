@@ -2,6 +2,7 @@ import csv
 import ujson
 from pathlib import Path
 from .activities import ActivitiesDb
+from logging import Logger
 
 
 class ParseWinActivities:
@@ -9,7 +10,7 @@ class ParseWinActivities:
         self,
         DBfilepath: Path,
         output_folder: Path,
-        logger=None,
+        logger: Logger,
     ):
         self._DBfilepath = DBfilepath
         self.logger = logger
@@ -120,7 +121,7 @@ class ParseWinActivities:
             }
             for _file in content.keys():
                 csvfile = open(
-                    output_folder / Path(f"{self._user_name}_{_file}.csv"),
+                    output_folder / f"{self._user_name}_{_file}.csv",
                     "w",
                     newline="",
                     encoding="utf-8",
@@ -137,7 +138,7 @@ class ParseWinActivities:
         try:
             for _file in content.keys():
                 with open(
-                    output_folder / Path(f"{self._user_name}_{_file}.jsonl"), "w"
+                    output_folder / f"{self._user_name}_{_file}.jsonl", "w"
                 ) as outfile:
                     _elems = content.get(_file, dict).get("jsonl", [])
                     for _row in _elems:

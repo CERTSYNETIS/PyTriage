@@ -4,8 +4,9 @@ services:
     build:
       context: ..
       dockerfile: Docker/Dockerfile
-    image: pytriage:3.0.0
-    container_name: pytriage
+      no_cache: true
+    image: pytriage:4.0.0
+    container_name: pytriage-preprod
     volumes:
       - /data/hayabusa:/hayabusa
       - /data:/data
@@ -24,7 +25,7 @@ services:
     ports:
       - 443:8080
   worker:
-    image: pytriage:3.0.0
+    image: pytriage:4.0.0
     command: celery --app triage.celery worker --loglevel=info
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -47,5 +48,19 @@ services:
       - /winlogbeat:/winlogbeat
       - /var/run/docker.sock:/var/run/docker.sock
   redis:
-    image: redis:7.2.5
+    image: redis:8.2.2
+  plaso:
+    image: log2timeline/plaso:20240317 # must be the same in triage.yaml
+    command: ["exit 0"]
 
+  filebeat:
+    image: elastic/filebeat:8.9.1 #must be the same in triage.yaml
+    command: ["exit 0"]
+
+  volatility:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile-volatility
+      no_cache: true
+    image: volatility3:2.26.2 #must be the same in triage.yaml
+    command: ["exit 0"]

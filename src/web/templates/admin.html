@@ -55,8 +55,9 @@
               <th scope="col">Hostname</th>
               <th scope="col">Date</th>
               <th scope="col">State</th>
+              <th scope="col">Action</th>
               <th scope="col">Delete</th>
-              <th scope="col">Dl logs</th>
+              <th scope="col">Log</th>
             </tr>
           </thead>
           <tbody id="tbody_collectes_infos"></tbody>
@@ -363,6 +364,7 @@
     $("#loading_div").hide();
     $("#alltoasts").html("");
     get_admin_collectes();
+    getAllClients();
     getTSStatus();
     getHayabusaVersion();
     getTSSketchs();
@@ -459,6 +461,12 @@
       state: state,
     };
     $.ajax({
+      beforeSend: function(xhr, settings){
+        if(!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain){
+          var csrf_token = "{{ csrf_token() }}";
+          xhr.setRequestHeader("X-CSRFToken", csrf_token);
+        }
+      },
       type: "post",
       url: "/admindeletecollecte",
       data: JSON.stringify(value),
@@ -484,6 +492,7 @@
     
   }
 
+  
   function display_collectes_infos(collectes = {}) {
     var text = "";
     //admin row
@@ -491,6 +500,7 @@
     text += '<td></td>';
     text += "<td></td>";
     text += "<td>Admin</td>";
+    text += "<td></td>";
     text += "<td></td>";
     text += "<td></td>";
     text += "<td></td>";
@@ -506,7 +516,22 @@
       text += "<td>" + value["hostname"] + "</td>";
       text += "<td class='mtime_tooltip' data-bs-toggle='tooltip' data-bs-placement='bottom' data-bs-title='" + value["mtime"].split(" ")[1] + "'>" + value["mtime"].split(" ")[0] + "</td>";
       text += '<td><span class="badge text-bg-primary">' + value["state"] +"</span></td>";
-      text +=
+      
+      if (value["state"].toLowerCase() == "started" ){
+      text += '<td><span class="badge text-bg-light" id="stop_collecte_' +
+        key +
+        '" type="button" onclick="stop_collecte(taskid=\'' +
+        value["taskid"] +
+        '\', csrf_token=\'{{ csrf_token() }}\', frombutton=true)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 640 640"><path d="M160 96L480 96C515.3 96 544 124.7 544 160L544 480C544 515.3 515.3 544 480 544L160 544C124.7 544 96 515.3 96 480L96 160C96 124.7 124.7 96 160 96z"/></svg></span></td>';
+      }
+      else{
+        text += '<td><span class="badge text-bg-light" id="replay_collecte_' +
+        key +
+        '" type="button" onclick="admin_replay_collecte(uuid=\'' +
+        key +
+        '\', csrf_token=\'{{ csrf_token() }}\')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 640 640"><path d="M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z"/></svg></span></td>';
+      }
+        text +=
         '<td><span class="badge text-bg-light" id="remove_collecte_' +
         key +
         '" type="button" onclick="remove_collecte(uuid=\'' +
@@ -677,6 +702,12 @@
         id: id
       }
       $.ajax({
+        beforeSend: function(xhr, settings){
+          if(!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain){
+            var csrf_token = "{{ csrf_token() }}";
+            xhr.setRequestHeader("X-CSRFToken", csrf_token);
+          }
+        },
         type: "post",
         url: "/admindeletesketch",
         data: JSON.stringify(value),
@@ -716,6 +747,12 @@
         name: name
       }
       $.ajax({
+        beforeSend: function(xhr, settings){
+          if(!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain){
+            var csrf_token = "{{ csrf_token() }}";
+            xhr.setRequestHeader("X-CSRFToken", csrf_token);
+          }
+        },
         type: "post",
         url: "/admindeleteindice",
         data: JSON.stringify(value),
@@ -802,6 +839,12 @@
         );
         return xhr;
       },
+      beforeSend: function(xhr, settings){
+        if(!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain){
+          var csrf_token = "{{ csrf_token() }}";
+          xhr.setRequestHeader("X-CSRFToken", csrf_token);
+        }
+      },
       url: "/admin_upload_hayabusa",
       type: "POST",
       data: data,
@@ -813,7 +856,11 @@
         if (res) {
           var txt = "";
           if (res.error) {
-            console.log(res.error);
+            generate_toast(
+              "update_hayabusa_error",
+              res.error,
+              "text-bg-danger"
+            );
           } else {
             getHayabusaVersion();
             generate_toast(
@@ -895,5 +942,6 @@
   setInterval(getMachineUsage, 30000);
   setInterval(function(){$("#alltoasts").html("");}, 30000);
   setInterval(getAllClients, 60000);
+  setInterval(get_admin_collectes, 60000);
 </script>
 {% endblock %}

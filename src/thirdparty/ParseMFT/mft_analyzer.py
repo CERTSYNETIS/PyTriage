@@ -1,6 +1,7 @@
 import csv
 from .constants import *
 from .mft_record import MftRecord
+from logging import Logger
 
 
 class MftAnalyzer:
@@ -8,18 +9,10 @@ class MftAnalyzer:
         self,
         mft_file: str,
         output_file: str,
-        debug: int = 0,
-        verbosity: int = 0,
-        compute_hashes: bool = False,
-        export_format: str = "csv",
-        logger=None,
+        logger: Logger,
     ) -> None:
         self.mft_file = mft_file
         self.output_file = output_file
-        self.debug = debug
-        self.verbosity = int(verbosity)
-        self.compute_hashes = compute_hashes
-        self.export_format = export_format
         self.csvfile = None
         self.csv_writer = None
         self.logger = logger
@@ -30,15 +23,6 @@ class MftAnalyzer:
             "directories": 0,
             "files": 0,
         }
-        if self.compute_hashes:
-            self.stats.update(
-                {
-                    "unique_md5": set(),
-                    "unique_sha256": set(),
-                    "unique_sha512": set(),
-                    "unique_crc32": set(),
-                }
-            )
 
     def analyze(self) -> None:
         try:
@@ -66,7 +50,7 @@ class MftAnalyzer:
 
                     try:
                         # self.logger.debug(f"Processing record {self.stats['total_records']}")
-                        record = MftRecord(raw_record, self.compute_hashes)
+                        record = MftRecord(raw_record, False)
                         # self.logger.debug(f"Record parsed, recordnum: {record.recordnum}")
                         self.stats["total_records"] += 1
 
@@ -78,15 +62,6 @@ class MftAnalyzer:
                             self.stats["files"] += 1
 
                         self.mft_records[record.recordnum] = record
-
-                        if self.debug >= 2:
-                            self.logger.debug(
-                                f"Processed record {self.stats['total_records']}: {record.filename}"
-                            )
-
-                        # if self.stats["total_records"] % 1000 == 0:
-                        #    self.write_csv_block()
-                        #    self.mft_records.clear()
 
                     except Exception as e:
                         self.logger.error(
@@ -129,8 +104,7 @@ class MftAnalyzer:
                     csv_row = [str(item) for item in csv_row]
 
                     self.csv_writer.writerow(csv_row)
-                    if self.debug:
-                        self.logger.debug(f"Wrote record {record.recordnum} to CSV")
+
                 except Exception as e:
                     self.logger.error(
                         f"Error writing record {record.recordnum}: {str(e)}"
@@ -184,12 +158,3 @@ class MftAnalyzer:
         self.logger.info(f"Active records: {self.stats['active_records']}")
         self.logger.info(f"Directories: {self.stats['directories']}")
         self.logger.info(f"Files: {self.stats['files']}")
-        if self.compute_hashes:
-            self.logger.info(f"Unique MD5 hashes: {len(self.stats['unique_md5'])}")
-            self.logger.info(
-                f"Unique SHA256 hashes: {len(self.stats['unique_sha256'])}"
-            )
-            self.logger.info(
-                f"Unique SHA512 hashes: {len(self.stats['unique_sha512'])}"
-            )
-            self.logger.info(f"Unique CRC32 hashes: {len(self.stats['unique_crc32'])}")

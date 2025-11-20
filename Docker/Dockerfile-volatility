@@ -1,0 +1,6 @@
+FROM python:3.13
+LABEL maintainer="SYNETIS <cert@synetis.com>"
+VOLUME ["/data"]
+RUN pip install git+https://github.com/volatilityfoundation/volatility3.git
+ENTRYPOINT ["vol"]
+#RUN pip install volatility3
